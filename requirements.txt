@@ -1,0 +1,6 @@
+matplotlib
+opencv-python
+plyfile
+trimesh
+networkx
+./pointnet2/.
