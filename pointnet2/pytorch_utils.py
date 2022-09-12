@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 ''' Modified based on Ref: https://github.com/erikwijmans/Pointnet2_PyTorch '''
-import torch
 import torch.nn as nn
 from typing import List, Tuple
 

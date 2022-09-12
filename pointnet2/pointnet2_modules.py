@@ -13,11 +13,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import os
-import sys
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
-
 import pointnet2_utils
 import pytorch_utils as pt_utils
 from typing import List
@@ -32,7 +27,7 @@ class _PointnetSAModuleBase(nn.Module):
         self.mlps = None
 
     def forward(self, xyz: torch.Tensor,
-                features: torch.Tensor = None) -> (torch.Tensor, torch.Tensor):
+                features: torch.Tensor = None) -> tuple(torch.Tensor, torch.Tensor):
         r"""
         Parameters
         ----------

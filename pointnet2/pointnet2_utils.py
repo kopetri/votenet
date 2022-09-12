@@ -15,7 +15,6 @@ import torch
 from torch.autograd import Function
 import torch.nn as nn
 import pytorch_utils as pt_utils
-import sys
 
 try:
     import builtins
