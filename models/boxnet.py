@@ -6,15 +6,11 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import sys
-import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(BASE_DIR)
-from backbone_module import Pointnet2Backbone
-from proposal_module import ProposalModule
-from dump_helper import dump_results
-from loss_helper_boxnet import get_loss
+
+from models.backbone_module import Pointnet2Backbone
+from models.proposal_module import ProposalModule
+from models.dump_helper import dump_results
+from models.loss_helper_boxnet import get_loss
 
 
 class BoxNet(nn.Module):
@@ -89,8 +85,7 @@ class BoxNet(nn.Module):
 
 
 if __name__=='__main__':
-    sys.path.append(os.path.join(ROOT_DIR, 'sunrgbd'))
-    from sunrgbd_detection_dataset import SunrgbdDetectionVotesDataset, DC
+    from sunrgbd.sunrgbd_detection_dataset import SunrgbdDetectionVotesDataset, DC
 
     # Define dataset
     TRAIN_DATASET = SunrgbdDetectionVotesDataset('train', num_points=20000, use_v1=True)

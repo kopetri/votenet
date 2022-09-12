@@ -7,13 +7,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import os
-import sys
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
-from pointnet2_modules import PointnetSAModuleVotes
-import pointnet2_utils
+
+from pointnet2.pointnet2_modules import PointnetSAModuleVotes
+from pointnet2 import pointnet2_utils
 
 def decode_scores(net, end_points, num_class, num_heading_bin, num_size_cluster, mean_size_arr):
     net_transposed = net.transpose(2,1) # (batch_size, 1024, ..)
@@ -99,7 +95,7 @@ class ProposalModule(nn.Module):
             sample_inds = torch.randint(0, num_seed, (batch_size, self.num_proposal), dtype=torch.int).cuda()
             xyz, features, _ = self.vote_aggregation(xyz, features, sample_inds)
         else:
-            log_string('Unknown sampling strategy: %s. Exiting!'%(self.sampling))
+            print('Unknown sampling strategy: %s. Exiting!'%(self.sampling))
             exit()
         end_points['aggregated_vote_xyz'] = xyz # (batch_size, num_proposal, 3)
         end_points['aggregated_vote_inds'] = sample_inds # (batch_size, num_proposal,) # should be 0,1,2,...,num_proposal
@@ -113,8 +109,7 @@ class ProposalModule(nn.Module):
         return end_points
 
 if __name__=='__main__':
-    sys.path.append(os.path.join(ROOT_DIR, 'sunrgbd'))
-    from sunrgbd_detection_dataset import SunrgbdDetectionVotesDataset, DC
+    from sunrgbd.sunrgbd_detection_dataset import SunrgbdDetectionVotesDataset, DC
     net = ProposalModule(DC.num_class, DC.num_heading_bin,
         DC.num_size_cluster, DC.mean_size_arr,
         128, 'seed_fps').cuda()

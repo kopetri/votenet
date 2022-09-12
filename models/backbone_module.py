@@ -5,18 +5,7 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-import sys
-import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(ROOT_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
-
-from pointnet2_modules import PointnetSAModuleVotes, PointnetFPModule
+from pointnet2.pointnet2_modules import PointnetSAModuleVotes, PointnetFPModule
 
 class Pointnet2Backbone(nn.Module):
     r"""

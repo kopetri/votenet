@@ -1,0 +1,3 @@
+__pycache__/
+pointnet2/build/
+*.egg-info

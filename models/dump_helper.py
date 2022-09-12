@@ -6,11 +6,7 @@
 import numpy as np
 import torch
 import os
-import sys
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-import pc_util
+from utils import pc_util
 
 DUMP_CONF_THRESH = 0.5 # Dump boxes with obj prob larger than that.
 

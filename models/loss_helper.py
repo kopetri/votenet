@@ -3,15 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from argparse import Namespace
+from turtle import forward
 import torch
 import torch.nn as nn
 import numpy as np
-import sys
-import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-from nn_distance import nn_distance, huber_loss
+from utils.nn_distance import nn_distance, huber_loss
 
 FAR_THRESHOLD = 0.6
 NEAR_THRESHOLD = 0.3
@@ -248,3 +245,28 @@ def get_loss(end_points, config):
     end_points['obj_acc'] = obj_acc
 
     return loss, end_points
+
+
+class VoteNetLoss(torch.nn.Module):
+    def __init__(self, num_heading_bin, num_size_cluster, num_class, mean_size_arr) -> None:
+        super().__init__()
+        self.config = Namespace()
+        self.config.num_heading_bin = num_heading_bin
+        self.config.num_size_cluster = num_size_cluster
+        self.config.num_class = num_class
+        self.config.mean_size_arr = mean_size_arr
+
+    def forward(self, end_points):
+        # Vote loss
+        vote_loss = compute_vote_loss(end_points)
+        # Obj loss
+        objectness_loss, _, _, _ = compute_objectness_loss(end_points)
+
+        # Box loss and sem cls loss
+        center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss = compute_box_and_sem_cls_loss(end_points, self.config)
+        box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + 0.1*size_cls_loss + size_reg_loss
+
+        # Final loss function
+        loss = vote_loss + 0.5*objectness_loss + box_loss + 0.1*sem_cls_loss
+        loss *= 10
+        return loss

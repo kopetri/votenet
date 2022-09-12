@@ -3,4 +3,6 @@ opencv-python
 plyfile
 trimesh
 networkx
+scipy
+pytorch_lightning
 ./pointnet2/.

@@ -5,14 +5,8 @@
 
 import torch
 import torch.nn as nn
-import numpy as np
-import sys
-import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-from nn_distance import nn_distance, huber_loss
-sys.path.append(BASE_DIR)
+
+from utils.nn_distance import nn_distance, huber_loss
 from loss_helper import compute_box_and_sem_cls_loss
 
 OBJECTNESS_CLS_WEIGHTS = [0.2,0.8] # put larger weights on positive objectness
