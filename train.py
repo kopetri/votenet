@@ -100,14 +100,14 @@ if __name__ == '__main__':
 
     
     trainer = pl.Trainer(
-        log_gpu_memory=False,
         fast_dev_run=args.dev,
+        accelerator='gpu' if use_gpu else 'cpu',
+        devices=1,
         profiler=False,
         gpus=args.gpus,
-        log_every_n_steps=1,
+        log_every_n_steps=50,
         overfit_batches=1 if args.overfit else 0,
         precision=args.precision if use_gpu else 32,
-        amp_level='O2' if use_gpu else None,
         min_epochs=args.min_epochs,
         max_epochs=args.max_epochs,
         logger=logger,
