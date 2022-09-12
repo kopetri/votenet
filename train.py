@@ -103,8 +103,6 @@ if __name__ == '__main__':
         fast_dev_run=args.dev,
         accelerator='gpu' if use_gpu else 'cpu',
         devices=1,
-        profiler=False,
-        gpus=args.gpus,
         log_every_n_steps=50,
         overfit_batches=1 if args.overfit else 0,
         precision=args.precision if use_gpu else 32,
