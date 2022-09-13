@@ -35,7 +35,7 @@ class ClusterSeparationDataset(Dataset):
         
        
     def __len__(self):
-        return len(self.scan_names)
+        return len(self.ids)
 
     def __getitem__(self, idx):
         """
