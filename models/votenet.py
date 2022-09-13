@@ -106,7 +106,7 @@ class VoteNetModule(pl.LightningModule):
         self.save_hyperparameters()
         self.opt = opt
         self.model = VoteNet(num_class=self.opt.num_class,
-                             num_heading_bin=self.opt.num_heading_bin,
+                             num_heading_bin=self.opt.num_head_bin,
                              num_size_cluster=self.opt.num_size_cluster,
                              mean_size_arr=self.opt.mean_size_arr,
                              num_proposal=self.opt.num_proposal,
