@@ -127,7 +127,7 @@ class VoteNetModule(pl.LightningModule):
 
         end_points = self.model(batch)
 
-        _, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], batch["gt_center"])
+        _, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], end_points['center_label'][:,:,0:3])
         seed_xyz = end_points['seed_xyz']
         vote_xyz = end_points['vote_xyz']
         seed_inds = end_points['seed_inds']
