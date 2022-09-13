@@ -65,10 +65,17 @@ if __name__ == '__main__':
     ###########################################################################
 
 
+    #################### ADD LOGGING   ########################################
+    if args.name is None or args.dev:
+        logger = None
+    else:
+        logger = pl.loggers.WandbLogger(project="Cluster Separation", name=args.name)
+    ###########################################################################
+
     #################### ADD CALLBACKS ########################################
     callbacks = []
 
-    if args.learning_rate_decay:
+    if args.learning_rate_decay and logger:
         callbacks += [pl.callbacks.lr_monitor.LearningRateMonitor()]
 
     callbacks += [pl.callbacks.ModelCheckpoint(
@@ -87,13 +94,6 @@ if __name__ == '__main__':
             verbose=True,
             mode='min'
         )]
-    ###########################################################################
-
-    #################### ADD LOGGING   ########################################
-    if args.name is None or args.dev:
-        logger = None
-    else:
-        logger = pl.loggers.WandbLogger(project="Cluster Separation", name=args.name)
     ###########################################################################
 
     
