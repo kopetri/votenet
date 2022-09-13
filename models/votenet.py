@@ -116,7 +116,7 @@ class VoteNetModule(pl.LightningModule):
         self.criterion = VoteNetLoss(num_class=self.opt.num_class, num_heading_bin=self.opt.num_head_bin, num_size_cluster=self.opt.num_size_cluster, mean_size_arr=self.opt.mean_size_arr)
 
     def forward(self, batch, batch_idx, name):
-        B = batch["point_cloud"].shape[0]
+        B = batch["point_clouds"].shape[0]
         end_points = self.model(batch)
         loss = self.criterion(end_points)
         self.log("{}_loss".format(name), loss, prog_bar=True, on_epoch=True, batch_size=B)
