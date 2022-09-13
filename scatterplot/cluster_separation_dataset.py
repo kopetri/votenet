@@ -19,9 +19,9 @@ MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 class ClusterSeparatonDatasetConfig(object):
     def __init__(self):
-        self.num_class = 1
+        self.num_class = 2
         self.num_heading_bin = 1
-        self.num_size_cluster = 1
+        self.num_size_cluster = 2
         self.mean_size_arr = np.array([[1.1425898, 1.1435672, 0.]])
         
 
@@ -44,12 +44,16 @@ class ClusterSeparationDataset(Dataset):
             return [s.strip() for s in splitfile.readlines()]
         
     def compute_mean_size_arr(self):
-        size_arr = []
+        size_arr_a = []
+        size_arr_b = []
         for idx in range(self.__len__()):
             bboxs = np.load(self.path/'{}_bbox.npy'.format(self.ids[idx]))
             for bbox in bboxs:
-                size_arr.append(bbox[3:6])
-        return np.mean(size_arr, axis=0)
+                if bbox[-1] == 0:
+                    size_arr_a.append(bbox[3:6])
+                else:
+                    size_arr_b.append(bbox[3:6])
+        return np.array([np.mean(size_arr_a, axis=0), np.mean(size_arr_b, axis=0)])
        
     def __len__(self):
         return len(self.ids)
