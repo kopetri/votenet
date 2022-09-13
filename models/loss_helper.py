@@ -260,8 +260,8 @@ class VoteNetLoss(torch.nn.Module):
         # Vote loss
         vote_loss = compute_vote_loss(end_points)
         # Obj loss
-        objectness_loss, _, _, _ = compute_objectness_loss(end_points)
-
+        objectness_loss, end_points['objectness_label'], end_points['objectness_mask'], end_points['object_assignment'] = compute_objectness_loss(end_points)
+  
         # Box loss and sem cls loss
         center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss = compute_box_and_sem_cls_loss(end_points, self.config)
         box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + 0.1*size_cls_loss + size_reg_loss
