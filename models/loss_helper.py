@@ -384,24 +384,26 @@ class ObjectnessLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward(self, objectness_scores, aggregated_vote_xyz, center_label):
-        gt_center = center_label[:,:,0:3]
-        B = gt_center.shape[0]
-        K = aggregated_vote_xyz.shape[1]
-        dist1, _, _, _ = nn_distance(aggregated_vote_xyz, gt_center) # dist1: BxK, dist2: BxK2
-
-        # Generate objectness label and mask
-        # objectness_label: 1 if pred object center is within NEAR_THRESHOLD of any GT object
-        # objectness_mask: 0 if pred object center is in gray zone (DONOTCARE), 1 otherwise
-        euclidean_dist1 = torch.sqrt(dist1+1e-6)
-        objectness_label = torch.zeros((B,K), dtype=torch.long).cuda()
-        objectness_mask = torch.zeros((B,K)).cuda()
-        objectness_label[euclidean_dist1<NEAR_THRESHOLD] = 1
-        objectness_mask[euclidean_dist1<NEAR_THRESHOLD] = 1
-        objectness_mask[euclidean_dist1>FAR_THRESHOLD] = 1
-
+    def forward(self, objectness_scores, objectness_label, objectness_mask):
         # Compute objectness loss
         criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS).cuda(), reduction='none')
         objectness_loss = criterion(objectness_scores.transpose(2,1), objectness_label)
         objectness_loss = torch.sum(objectness_loss * objectness_mask)/(torch.sum(objectness_mask)+1e-6)
         return objectness_loss
+
+def compute_object_label_mask(aggregated_vote_xyz, center_label):
+    gt_center = center_label[:,:,0:3]
+    B = gt_center.shape[0]
+    K = aggregated_vote_xyz.shape[1]
+    dist1, _, _, _ = nn_distance(aggregated_vote_xyz, gt_center) # dist1: BxK, dist2: BxK2
+
+    # Generate objectness label and mask
+    # objectness_label: 1 if pred object center is within NEAR_THRESHOLD of any GT object
+    # objectness_mask: 0 if pred object center is in gray zone (DONOTCARE), 1 otherwise
+    euclidean_dist1 = torch.sqrt(dist1+1e-6)
+    objectness_label = torch.zeros((B,K), dtype=torch.long).cuda()
+    objectness_mask = torch.zeros((B,K)).cuda()
+    objectness_label[euclidean_dist1<NEAR_THRESHOLD] = 1
+    objectness_mask[euclidean_dist1<NEAR_THRESHOLD] = 1
+    objectness_mask[euclidean_dist1>FAR_THRESHOLD] = 1
+    return objectness_label, objectness_mask

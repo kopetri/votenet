@@ -17,7 +17,7 @@ from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.dump_helper import dump_results
-from models.loss_helper import VoteLoss, HeadLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss
+from models.loss_helper import VoteLoss, HeadLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss, compute_object_label_mask
 from utils.nn_distance import nn_distance
 
 
@@ -128,19 +128,19 @@ class VoteNetModule(pl.LightningModule):
         end_points = self.model(batch)
 
         _, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], end_points['center_label'][:,:,0:3])
+        objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
+
         seed_xyz = end_points['seed_xyz']
         vote_xyz = end_points['vote_xyz']
         seed_inds = end_points['seed_inds']
         vote_label_mask = end_points['vote_label_mask']
         vote_label = end_points['vote_label']
         objectness_scores = end_points['objectness_scores']
-        aggregated_vote_xyz = end_points['aggregated_vote_xyz']
         center_label = end_points['center_label']
         size_scores = end_points['size_scores']
         size_class_label = end_points['size_class_label']
         size_residual_label = end_points['size_residual_label']
         size_residuals_normalized = end_points['size_residuals_normalized']
-        objectness_label = end_points['objectness_label']
         heading_class_label = end_points['heading_class_label']
         heading_scores = end_points['heading_scores']
         heading_residual_label = end_points['heading_residual_label']
@@ -151,7 +151,7 @@ class VoteNetModule(pl.LightningModule):
         sem_cls_scores = end_points['sem_cls_scores']
         
         vl       = self.vote_loss(seed_xyz, vote_xyz, seed_inds, vote_label_mask, vote_label)
-        ol       = self.objectness_loss(objectness_scores, aggregated_vote_xyz, center_label)
+        ol       = self.objectness_loss(objectness_scores, objectness_label, objectness_mask)
         scl, srl = self.size_loss(size_scores, size_class_label, size_residual_label, size_residuals_normalized, object_assignment, objectness_label)
         hcl, hrl = self.head_loss(heading_class_label, heading_scores, heading_residual_label, heading_residuals_normalized, object_assignment, objectness_label)
         cl       = self.center_loss(pred_center, center_label, box_label_mask, objectness_label)
