@@ -5,4 +5,4 @@ trimesh
 networkx
 scipy
 pytorch_lightning
-./pointnet2/.
+votenet/pointnet2/.
