@@ -146,7 +146,7 @@ class VoteNetModule(pl.LightningModule):
         heading_residual_label = end_points['heading_residual_label']
         heading_residuals_normalized = end_points['heading_residuals_normalized']
         box_label_mask = end_points['box_label_mask']
-        pred_center = end_points['pred_center']
+        pred_center = end_points['center']
         sem_cls_label = end_points['sem_cls_label']
         sem_cls_scores = end_points['sem_cls_scores']
         
