@@ -35,6 +35,7 @@ class ClusterSeparationDataset(Dataset):
         self.use_height = use_height
         self.augment = augment
         self.ids = self.load_split()
+        self.mean_size_arr = self.compute_mean_size_arr()
         print("Found {} scatterplots for split {}".format(len(self.ids), split))
         print("Mean size arr: ", self.mean_size_arr)
 
@@ -42,8 +43,7 @@ class ClusterSeparationDataset(Dataset):
         with open(self.path/"{}.txt".format(self.split), "r") as splitfile:
             return [s.strip() for s in splitfile.readlines()]
         
-    @property
-    def mean_size_arr(self):
+    def compute_mean_size_arr(self):
         size_arr = []
         for idx in range(self.__len__()):
             bboxs = np.load(self.path/'{}_bbox.npy'.format(self.ids[idx]))
@@ -132,22 +132,21 @@ class ClusterSeparationDataset(Dataset):
             point_votes_mask[ind] = 1.0
         point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical 
         
-        #class_ind = [np.where(DC.nyu40ids == x)[0][0] for x in instance_bboxes[:,-1]]   
+        class_ind = [0 for x in instance_bboxes[:,-1]]   
         # NOTE: set size class as semantic class. Consider use size2class.
-        #size_classes[0:instance_bboxes.shape[0]] = class_ind
-        #size_residuals[0:instance_bboxes.shape[0], :] = \
-        #    target_bboxes[0:instance_bboxes.shape[0], 3:6] - DC.mean_size_arr[class_ind,:]
+        size_classes[0:instance_bboxes.shape[0]] = class_ind
+        size_residuals[0:instance_bboxes.shape[0], :] = target_bboxes[0:instance_bboxes.shape[0], 3:6] - self.mean_size_arr
             
         ret_dict = {}
         ret_dict['point_clouds'] = point_cloud.astype(np.float32)
         ret_dict['center_label'] = target_bboxes.astype(np.float32)[:,0:3]
         ret_dict['heading_class_label'] = angle_classes.astype(np.int64)
         ret_dict['heading_residual_label'] = angle_residuals.astype(np.float32)
-        #ret_dict['size_class_label'] = size_classes.astype(np.int64)
-        #ret_dict['size_residual_label'] = size_residuals.astype(np.float32)
+        ret_dict['size_class_label'] = size_classes.astype(np.int64)
+        ret_dict['size_residual_label'] = size_residuals.astype(np.float32)
         target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))                                
-        #target_bboxes_semcls[0:instance_bboxes.shape[0]] = \
-        #    [DC.nyu40id2class[x] for x in instance_bboxes[:,-1][0:instance_bboxes.shape[0]]]                
+        target_bboxes_semcls[0:instance_bboxes.shape[0]] = \
+            [0 for x in instance_bboxes[:,-1][0:instance_bboxes.shape[0]]]                
         ret_dict['sem_cls_label'] = target_bboxes_semcls.astype(np.int64)
         ret_dict['box_label_mask'] = target_bboxes_mask.astype(np.float32)
         ret_dict['vote_label'] = point_votes.astype(np.float32)
