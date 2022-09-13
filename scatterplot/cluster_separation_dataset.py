@@ -17,6 +17,14 @@ from utils.pc_util import random_sampling, rotz, rotate_aligned_boxes
 MAX_NUM_OBJ = 64
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
+class ClusterSeparatonDatasetConfig(object):
+    def __init__(self):
+        self.num_class = 1
+        self.num_heading_bin = 1
+        self.num_size_cluster = 1
+        self.mean_size_arr = np.array([[1.1425898, 1.1435672, 0.]])
+        
+
 class ClusterSeparationDataset(Dataset):
        
     def __init__(self, path, split='train', num_points=5000, use_color=False, use_height=False, augment=False):
@@ -28,11 +36,20 @@ class ClusterSeparationDataset(Dataset):
         self.augment = augment
         self.ids = self.load_split()
         print("Found {} scatterplots for split {}".format(len(self.ids), split))
+        print("Mean size arr: ", self.mean_size_arr)
 
     def load_split(self):
         with open(self.path/"{}.txt".format(self.split), "r") as splitfile:
             return [s.strip() for s in splitfile.readlines()]
         
+    @property
+    def mean_size_arr(self):
+        size_arr = []
+        for idx in range(self.__len__()):
+            bboxs = np.load(self.path/'{}_bbox.npy'.format(self.ids[idx]))
+            for bbox in bboxs:
+                size_arr.append(bbox[3:6])
+        return np.mean(size_arr, axis=0)
        
     def __len__(self):
         return len(self.ids)

@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from models.votenet import VoteNetModule
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from scatterplot.cluster_separation_dataset import ClusterSeparationDataset
+from scatterplot.cluster_separation_dataset import ClusterSeparationDataset, ClusterSeparatonDatasetConfig
 
 def parse_ckpt(path):    
     return [p for p in Path(path).glob("**/*") if p.suffix == ".ckpt"][0].as_posix()
@@ -32,9 +32,9 @@ if __name__ == '__main__':
     parser.add_argument('--name', default="pointcloud", type=str, help='Name of output folder.')
     parser.add_argument('--use_augmentation', action='store_true', help="Whether to use data augmentation")
     parser.add_argument('--n_points', default=500, type=int, help="Whether to use data augmentation")
-    parser.add_argument('--num_size_cluster', default=10, type=int, help="Whether to use data augmentation")
-    parser.add_argument('--num_heading_bin', default=10, type=int, help="Whether to use data augmentation")
-    parser.add_argument('--num_class', default=1, type=int, help="Whether to use data augmentation")
+    #parser.add_argument('--num_size_cluster', default=1, type=int, help="Whether to use data augmentation")
+    #parser.add_argument('--num_heading_bin', default=1, type=int, help="Whether to use data augmentation")
+    #parser.add_argument('--num_class', default=1, type=int, help="Whether to use data augmentation")
     parser.add_argument('--input_feature_dim', default=3, type=int, help="Whether to use data augmentation")
     parser.add_argument('--vote_factor', default=1, type=int, help="Whether to use data augmentation")
     parser.add_argument('--sampling', default='vote_fps', type=str, help="sampling strategy")
@@ -114,6 +114,13 @@ if __name__ == '__main__':
 
     train_dataset = ClusterSeparationDataset(path=args.dataset_path, split="train", num_points=args.n_points)
     val_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="valid", num_points=args.n_points)
+
+    config = ClusterSeparatonDatasetConfig()
+
+    args.mean_size_arr = config.mean_size_arr
+    args.num_size_cluster = config.num_size_cluster
+    args.num_class = config.num_class
+    args.num_heading_bin = config.num_heading_bin
 
     train_loader = DataLoader(
         train_dataset,

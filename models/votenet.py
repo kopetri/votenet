@@ -119,7 +119,7 @@ class VoteNetModule(pl.LightningModule):
         B = batch["point_cloud"].shape[0]
         end_points = self.model(batch)
         loss = self.criterion(end_points)
-        self.log("{}_loss", loss, prog_bar=True, on_epoch=True, batch_size=B)
+        self.log("{}_loss".format(name), loss, prog_bar=True, on_epoch=True, batch_size=B)
         return loss
 
     def training_step(self, batch, batch_idx):
