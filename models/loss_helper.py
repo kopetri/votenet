@@ -305,7 +305,7 @@ class SizeLoss(torch.nn.Module):
 
         mean_size_arr_expanded = torch.from_numpy(self.mean_size_arr.astype(np.float32)).cuda().unsqueeze(0).unsqueeze(0) # (1,1,num_size_cluster,3) 
         mean_size_label = torch.sum(size_label_one_hot_tiled * mean_size_arr_expanded, 2) # (B,K,3)
-        size_residual_label_normalized = size_residual_label / mean_size_label # (B,K,3)
+        size_residual_label_normalized = size_residual_label / (mean_size_label+1e-6) # (B,K,3)
         size_residual_normalized_loss = torch.mean(huber_loss(predicted_size_residual_normalized - size_residual_label_normalized, delta=1.0), -1) # (B,K,3) -> (B,K)
         size_residual_normalized_loss = torch.sum(size_residual_normalized_loss*objectness_label)/(torch.sum(objectness_label)+1e-6)
         return size_class_loss, size_residual_normalized_loss
