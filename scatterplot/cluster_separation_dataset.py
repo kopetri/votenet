@@ -22,7 +22,10 @@ class ClusterSeparatonDatasetConfig(object):
         self.num_class = 2
         self.num_heading_bin = 1
         self.num_size_cluster = 2
-        self.mean_size_arr = np.array([[1.1425898, 1.1435672, 0.]])
+        self.mean_size_arr = np.array([
+            [1.1498247, 1.1521318, 0.],
+            [1.1353437, 1.1349982, 0.]
+        ])
         
 
 class ClusterSeparationDataset(Dataset):
