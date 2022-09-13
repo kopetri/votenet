@@ -118,7 +118,7 @@ if __name__ == '__main__':
     args.mean_size_arr = config.mean_size_arr
     args.num_size_cluster = config.num_size_cluster
     args.num_class = config.num_class
-    args.num_heading_bin = config.num_heading_bin
+    args.num_head_bin = config.num_heading_bin
 
     train_loader = DataLoader(
         train_dataset,
