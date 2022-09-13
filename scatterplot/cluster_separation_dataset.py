@@ -76,6 +76,7 @@ class ClusterSeparationDataset(Dataset):
         instance_labels = np.load(self.path/'{}_ins_id.npy'.format(plot_id)) # 0 non cluster, 1, 2
         semantic_labels = np.load(self.path/'{}_sem_id.npy'.format(plot_id)) # 0 -> non cluster, 1 -> cluster
         instance_bboxes = np.load(self.path/'{}_bbox.npy'.format(plot_id))
+
         # votes = tuple(mask, bbox)
 
         point_cloud = vertices[:,0:3]
@@ -131,8 +132,8 @@ class ClusterSeparationDataset(Dataset):
             point_votes[ind, :] = center - x
             point_votes_mask[ind] = 1.0
         point_votes = np.tile(point_votes, (1, 3)) # make 3 votes identical 
-        
-        class_ind = [0 for x in instance_bboxes[:,-1]]   
+
+        class_ind = [x for x in instance_bboxes[:,-1]]   
         # NOTE: set size class as semantic class. Consider use size2class.
         size_classes[0:instance_bboxes.shape[0]] = class_ind
         size_residuals[0:instance_bboxes.shape[0], :] = target_bboxes[0:instance_bboxes.shape[0], 3:6] - self.mean_size_arr
@@ -146,7 +147,7 @@ class ClusterSeparationDataset(Dataset):
         ret_dict['size_residual_label'] = size_residuals.astype(np.float32)
         target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))                                
         target_bboxes_semcls[0:instance_bboxes.shape[0]] = \
-            [0 for x in instance_bboxes[:,-1][0:instance_bboxes.shape[0]]]                
+            [x for x in instance_bboxes[:,-1][0:instance_bboxes.shape[0]]]                
         ret_dict['sem_cls_label'] = target_bboxes_semcls.astype(np.int64)
         ret_dict['box_label_mask'] = target_bboxes_mask.astype(np.float32)
         ret_dict['vote_label'] = point_votes.astype(np.float32)
