@@ -129,33 +129,13 @@ class VoteNetModule(pl.LightningModule):
 
         _, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], end_points['center_label'][:,:,0:3])
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
-
-        seed_xyz = end_points['seed_xyz']
-        vote_xyz = end_points['vote_xyz']
-        seed_inds = end_points['seed_inds']
-        vote_label_mask = end_points['vote_label_mask']
-        vote_label = end_points['vote_label']
-        objectness_scores = end_points['objectness_scores']
-        center_label = end_points['center_label']
-        size_scores = end_points['size_scores']
-        size_class_label = end_points['size_class_label']
-        size_residual_label = end_points['size_residual_label']
-        size_residuals_normalized = end_points['size_residuals_normalized']
-        heading_class_label = end_points['heading_class_label']
-        heading_scores = end_points['heading_scores']
-        heading_residual_label = end_points['heading_residual_label']
-        heading_residuals_normalized = end_points['heading_residuals_normalized']
-        box_label_mask = end_points['box_label_mask']
-        pred_center = end_points['center']
-        sem_cls_label = end_points['sem_cls_label']
-        sem_cls_scores = end_points['sem_cls_scores']
         
-        vl       = self.vote_loss(seed_xyz, vote_xyz, seed_inds, vote_label_mask, vote_label)
-        ol       = self.objectness_loss(objectness_scores, objectness_label, objectness_mask)
-        scl, srl = self.size_loss(size_scores, size_class_label, size_residual_label, size_residuals_normalized, object_assignment, objectness_label)
-        hcl, hrl = self.head_loss(heading_class_label, heading_scores, heading_residual_label, heading_residuals_normalized, object_assignment, objectness_label)
-        cl       = self.center_loss(pred_center, center_label, box_label_mask, objectness_label)
-        seml     = self.sem_loss(sem_cls_scores, sem_cls_label, object_assignment, objectness_label)
+        vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
+        ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
+        scl, srl = self.size_loss(end_points['size_scores'], end_points['size_class_label'], end_points['size_residual_label'], end_points['size_residuals_normalized'], object_assignment, objectness_label)
+        hcl, hrl = self.head_loss(end_points['heading_class_label'], end_points['heading_scores'], end_points['heading_residual_label'], end_points['heading_residuals_normalized'], object_assignment, objectness_label)
+        cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
+        seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
 
         loss = self.compute_votenet_loss(
             center_loss=cl,
