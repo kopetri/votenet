@@ -72,7 +72,7 @@ class VoteNet(nn.Module):
 
     def compute_point_to_cluster_labels(self, end_points):
         point_features = end_points['point_clouds']# (B, N, P)
-        xyz = point_features[:, 0:3] # (B, N, 3)
+        xyz = point_features[:,:, 0:3] # (B, N, 3)
         pred_centers = end_points['center'] # (B, K, 3)
         proposal_mask = end_points['proposal_mask'] # (B, K)
 
@@ -191,8 +191,7 @@ class PointToClusterModule(torch.nn.Module):
         proposals = proposals.unsqueeze(1).repeat(1, point_feat.shape[1], 1, 1)
         feat = torch.cat([point_feat, proposals], dim=-1) # (B, N, K, P+C)
         feat = self.mlp(feat).squeeze(-1) # (B, N, K)
-        feat = feat.softmax(dim=-1)
-        end_points['point_to_cluster_probabilities'] = feat
+        end_points['point_to_cluster_probabilities'] = feat.permute(0,2,1)
         return end_points
 
 class VoteNetModule(pl.LightningModule):
