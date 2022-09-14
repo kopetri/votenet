@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from models.votenet import VoteNetModule
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from scatterplot.cluster_separation_dataset import ClusterSeparationDataset, ClusterSeparatonDatasetConfig
+from scatterplot.cluster_separation_dataset import ClusterSeparationDataset
 import cv2
 
 def parse_ckpt(path):
@@ -40,6 +40,7 @@ if __name__ == '__main__':
     images, plot_ids = trainer.predict(model=model, dataloaders=test_loader)
     for img, pid in zip(images, plot_ids):
         path = Path(args.ckpt).parent/"results"/"{}.jpg".format(pid)
+        path.parent.mkdir(parents=True, exist_ok=True)
         img = img[..., ::-1] # rgb to bgr
         cv2.imwrite(path.as_posix(), img)
 
