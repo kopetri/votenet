@@ -171,14 +171,14 @@ class VoteNetModule(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         end_points = self.model(batch)
 
-        points = batch["point_clouds"].squeece(0).numpy() # (N, 3)
-        centers = batch['center_label'].squeece(0).numpy() # (2, 3)
-        dim = batch['bbox_dim'].squeece(0).numpy() # (2, 3)
+        points = batch["point_clouds"].squeeze(0).numpy() # (N, 3)
+        centers = batch['center_label'].squeeze(0).numpy() # (2, 3)
+        dim = batch['bbox_dim'].squeeze(0).numpy() # (2, 3)
 
         bbox = np.concatenate([centers, dim], axis=1)
         img = draw_scatterplot(points, bbox=bbox)
         img = img[...,::-1]
-        return img, batch["plot_id"].squeece(0).item()
+        return img, batch["plot_id"].squeeze(0).item()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
