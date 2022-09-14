@@ -8,6 +8,7 @@
 Author: Charles R. Qi and Or Litany
 """
 
+from turtle import forward
 import torch
 import torch.nn as nn
 import numpy as np
@@ -63,6 +64,36 @@ class VoteNet(nn.Module):
         self.pnet = ProposalModule(num_class, num_heading_bin, num_size_cluster,
             mean_size_arr, num_proposal, sampling)
 
+        # Proposal Filtering
+        self.prob_filter = ProposalFilter(C=2+3+num_heading_bin*2+num_size_cluster*4+num_class)
+
+    def compute_proposal_mask(end_points):
+        pred_centers = end_points['center']
+        gt_centers = end_points['center_label']
+        # pred_centers.shape (B, M, 3)
+        # gt_centers.shape (B, N, 3)
+        mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1]))
+
+        N = pred_centers.shape[1]
+        M = gt_centers.shape[1]
+        C = pred_centers.shape[-1]
+        X = torch.repeat_interleave(pred_centers, M, dim=1)
+        Y = gt_centers.repeat(1, N, 1)
+
+        diff = X - Y
+        diff = torch.pow(diff, 2)
+        diff = torch.sum(diff, dim=-1)
+        dist = torch.sqrt(diff)
+        dist = dist.reshape(-1, pred_centers.shape[1], gt_centers.shape[1])
+        
+        indices = torch.argmin(dist, dim=1)
+        for ind, m in zip(indices, mask):
+            for i in ind:
+                m[i] = 1.0
+        end_points['proposal_mask'] = mask
+        return end_points
+
+
     def forward(self, inputs):
         """ Forward pass of the network
 
@@ -96,8 +127,25 @@ class VoteNet(nn.Module):
         end_points['vote_xyz'] = xyz
         end_points['vote_features'] = features
 
-        end_points = self.pnet(xyz, features, end_points)
+        end_points, proposals = self.pnet(xyz, features, end_points)
 
+        end_points = self.prob_filter(proposals, end_points)
+        end_points = self.compute_proposal_mask(end_points)
+
+        return end_points
+
+class ProposalFilter(torch.nn.Module):
+    def __init__(self, C, size=256) -> None:
+        super().__init__()
+        self.mlp = nn.Sequential(
+            torch.nn.Linear(C, size),
+            torch.nn.Linear(size, 1),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, x, end_points):
+        # x.shape (B, C+3, number_proposals)
+        end_points['proposal_pred'] = self.mlp(x)
         return end_points
 
 class VoteNetModule(pl.LightningModule):
@@ -120,6 +168,7 @@ class VoteNetModule(pl.LightningModule):
         self.head_loss       = HeadLoss(self.opt.num_head_bin)
         self.center_loss     = CenterLoss()
         self.sem_loss        = SematicLoss()
+        self.prop_loss       = nn.BCELoss()
 
     def forward(self, batch, batch_idx, name):
         B = batch["point_clouds"].shape[0]
@@ -135,9 +184,10 @@ class VoteNetModule(pl.LightningModule):
         hcl, hrl = self.head_loss(end_points['heading_class_label'], end_points['heading_scores'], end_points['heading_residual_label'], end_points['heading_residuals_normalized'], object_assignment, objectness_label)
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
         seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
+        probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
         
         box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
-        loss = self.compute_votenet_loss(vl, ol, box_loss, seml)
+        loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl
 
         self.log("{}_loss".format(name),             loss,       prog_bar=True, on_epoch=True, batch_size=B)
         self.log("{}_center_loss".format(name),      cl,         prog_bar=True, on_epoch=True, batch_size=B)
@@ -149,6 +199,7 @@ class VoteNetModule(pl.LightningModule):
         self.log("{}_sem_cls_loss".format(name),     seml,       prog_bar=True, on_epoch=True, batch_size=B)
         self.log("{}_vote_loss".format(name),        vl,         prog_bar=True, on_epoch=True, batch_size=B)
         self.log("{}_box_loss".format(name),         box_loss,   prog_bar=True, on_epoch=True, batch_size=B)
+        self.log("{}_prop_loss".format(name),        probl,      prog_bar=True, on_epoch=True, batch_size=B)
         return loss
 
     def compute_votenet_loss(self, vote_loss, objectness_loss, box_loss, sem_cls_loss):

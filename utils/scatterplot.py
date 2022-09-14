@@ -3,8 +3,6 @@ from matplotlib.patches import Rectangle
 import numpy as np
 
 def draw_scatterplot(points, sem=None, instance=None, bbox=None, pred=None):
-    
-    
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:cyan'}
     fig, ax = plt.subplots()

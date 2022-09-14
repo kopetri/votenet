@@ -106,7 +106,7 @@ class ProposalModule(nn.Module):
         net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
 
         end_points = decode_scores(net, end_points, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
-        return end_points
+        return end_points, net
 
 if __name__=='__main__':
     from sunrgbd.sunrgbd_detection_dataset import SunrgbdDetectionVotesDataset, DC
