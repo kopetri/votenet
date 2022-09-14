@@ -101,7 +101,7 @@ if __name__ == '__main__':
         devices=1,
         log_every_n_steps=50,
         overfit_batches=1 if args.overfit else 0,
-        precision=args.precision if use_gpu else 32,
+        precision=args.precision,
         min_epochs=args.min_epochs,
         max_epochs=args.max_epochs,
         logger=logger,
