@@ -71,7 +71,7 @@ class VoteNet(nn.Module):
         self.point2cluster = PointToClusterModule(n_point_feat=0, C=2+3+num_heading_bin*2+num_size_cluster*4+num_class)
 
     def compute_point_to_cluster_labels(self, end_points):
-        point_features = end_points['points_clouds']# (B, N, P)
+        point_features = end_points['point_clouds']# (B, N, P)
         xyz = point_features[:, 0:3]
         pred_centers = end_points['center']
         proposals = end_points['proposals']         # (B, C, K)
@@ -100,8 +100,8 @@ class VoteNet(nn.Module):
         dist = dist.reshape(-1, pred_centers.shape[1], gt_centers.shape[1])
         
         y = torch.argmin(dist, dim=1) # (B, 2)
-        x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]) 
-        indices = torch.stack([x,y], dim=2).view(y.shape[1] * y.shape[0], y.shape[1]).permute(1,0).tolist()
+        x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]).to(y) 
+        indices = torch.stack([x,y], dim=2).view(y.shape[1] * y.shape[0], 2).permute(1,0).tolist()
         #for ind, m in zip(indices, mask):
         #    for i in ind:
         #        m[i] = 1.0
@@ -172,7 +172,7 @@ class PointToClusterModule(torch.nn.Module):
     def __init__(self, n_point_feat, C, size=256) -> None:
         super().__init__()
         self.mlp = nn.Sequential(
-            torch.nn.Linear(n_point_feat + C, size),
+            torch.nn.Linear(3 + n_point_feat + C, size),
             torch.nn.Linear(size, 1)
         )
 
@@ -182,7 +182,7 @@ class PointToClusterModule(torch.nn.Module):
         # point_feat.shape (B, N, P)
         # proposals.shape (B, C, K)
         proposals = proposals.permute(0,2,1) # (B, K, C)
-        point_feat.unsqueeze(2).repeat(1, 1, proposals.shape[1], 1)
+        point_feat = point_feat.unsqueeze(2).repeat(1, 1, proposals.shape[1], 1)
         proposals = proposals.unsqueeze(1).repeat(1, point_feat.shape[1], 1, 1)
         feat = torch.cat([point_feat, proposals], dim=-1) # (B, N, K, P+C)
         feat = self.mlp(feat).squeeze(-1) # (B, N, K)
