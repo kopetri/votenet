@@ -52,14 +52,13 @@ if __name__ == '__main__':
         args.seed = random.randrange(4294967295) # Make sure it's logged
     pl.utilities.seed.seed_everything(args.seed)
 
-    use_gpu = not args.gpus == 0
 
     # append stats to hparameter file
     yaml = args.__dict__
     yaml.update({
             'random_seed': args.seed,
-            'gpu_name': torch.cuda.get_device_name(0) if use_gpu else None,
-            'gpu_capability': torch.cuda.get_device_capability(0) if use_gpu else None
+            'gpu_name': torch.cuda.get_device_name(0),
+            'gpu_capability': torch.cuda.get_device_capability(0)
             })
     ###########################################################################
 
