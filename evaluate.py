@@ -9,6 +9,11 @@ from torch.utils.data import DataLoader
 from scatterplot.cluster_separation_dataset import ClusterSeparationDataset, ClusterSeparatonDatasetConfig
 import cv2
 
+def parse_ckpt(path):
+    ckpt = [p for p in Path(path).glob("**/*") if p.suffix == ".ckpt"][0].as_posix()
+    print("Loading checkpoint: ", ckpt)
+    return ckpt
+
 if __name__ == '__main__':
     parser = ArgumentParser('Evaluate scatterplot model')
     parser.add_argument('--worker', default=8, type=int, help='Number of workers for data loader')
@@ -21,8 +26,7 @@ if __name__ == '__main__':
         devices=1,
     )
 
-    assert Path(args.path).is_file(), "Not a valid .ckpt file provided: {}".format(args.ckpt)
-    model = VoteNetModule.load_from_checkpoint(args.ckpt)
+    model = VoteNetModule.load_from_checkpoint(parse_ckpt(args.ckpt))
 
     test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="test", num_points=model.opt.n_points)
 
