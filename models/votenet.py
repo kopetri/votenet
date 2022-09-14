@@ -67,12 +67,25 @@ class VoteNet(nn.Module):
         # Proposal Filtering
         self.prob_filter = ProposalFilter(C=2+3+num_heading_bin*2+num_size_cluster*4+num_class)
 
+        # Point to cluster segmentation
+        self.point2cluster = PointToClusterModule(n_point_feat=0, C=2+3+num_heading_bin*2+num_size_cluster*4+num_class)
+
+    def compute_point_to_cluster_labels(self, end_points):
+        point_features = end_points['points_clouds']# (B, N, P)
+        xyz = point_features[:, 0:3]
+        pred_centers = end_points['center']
+        proposals = end_points['proposals']         # (B, C, K)
+        proposal_mask = end_points['proposal_mask'] # (B, K)
+        sematic_labels = end_points['semantic_labels'] # (B, N)
+        labels = torch.zeros((point_features.shape[0], point_features.shape[1])) # (B, N)
+        return end_points
+
     def compute_proposal_mask(self, end_points):
         pred_centers = end_points['center']
         gt_centers = end_points['center_label']
-        # pred_centers.shape (B, M, 3)
+        # pred_centers.shape (B, K, 3)
         # gt_centers.shape (B, N, 3)
-        mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1]))
+        mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1])) # (B, K)
 
         N = pred_centers.shape[1]
         M = gt_centers.shape[1]
@@ -86,10 +99,13 @@ class VoteNet(nn.Module):
         dist = torch.sqrt(diff)
         dist = dist.reshape(-1, pred_centers.shape[1], gt_centers.shape[1])
         
-        indices = torch.argmin(dist, dim=1)
-        for ind, m in zip(indices, mask):
-            for i in ind:
-                m[i] = 1.0
+        y = torch.argmin(dist, dim=1) # (B, 2)
+        x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]) 
+        indices = torch.stack([x,y], dim=2).view(y.shape[1] * y.shape[0], y.shape[1]).permute(1,0).tolist()
+        #for ind, m in zip(indices, mask):
+        #    for i in ind:
+        #        m[i] = 1.0
+        mask[indices] = 1.0
         end_points['proposal_mask'] = mask.to(pred_centers)
         return end_points
 
@@ -127,10 +143,13 @@ class VoteNet(nn.Module):
         end_points['vote_xyz'] = xyz
         end_points['vote_features'] = features
 
-        end_points, proposals = self.pnet(xyz, features, end_points)
+        end_points = self.pnet(xyz, features, end_points)
 
-        end_points = self.prob_filter(proposals, end_points)
+        end_points = self.prob_filter(end_points)
         end_points = self.compute_proposal_mask(end_points)
+
+        end_points = self.compute_point_to_cluster_labels(end_points)
+        end_points = self.point2cluster(end_points)
 
         return end_points
 
@@ -143,9 +162,32 @@ class ProposalFilter(torch.nn.Module):
             torch.nn.Sigmoid()
         )
 
-    def forward(self, x, end_points):
+    def forward(self, end_points):
+        x = end_points['proposals']
         # x.shape (B, C+3, number_proposals)
         end_points['proposal_pred'] = self.mlp(x.permute(0, 2, 1)).squeeze(-1)
+        return end_points
+
+class PointToClusterModule(torch.nn.Module):
+    def __init__(self, n_point_feat, C, size=256) -> None:
+        super().__init__()
+        self.mlp = nn.Sequential(
+            torch.nn.Linear(n_point_feat + C, size),
+            torch.nn.Linear(size, 1)
+        )
+
+    def forward(self, end_points):
+        proposals = end_points["proposals"]
+        point_feat = end_points["point_clouds"]
+        # point_feat.shape (B, N, P)
+        # proposals.shape (B, C, K)
+        proposals = proposals.permute(0,2,1) # (B, K, C)
+        point_feat.unsqueeze(2).repeat(1, 1, proposals.shape[1], 1)
+        proposals = proposals.unsqueeze(1).repeat(1, point_feat.shape[1], 1, 1)
+        feat = torch.cat([point_feat, proposals], dim=-1) # (B, N, K, P+C)
+        feat = self.mlp(feat).squeeze(-1) # (B, N, K)
+        feat = feat.softmax(dim=-1)
+        end_points['point_to_cluster_probabilities'] = feat
         return end_points
 
 class VoteNetModule(pl.LightningModule):
