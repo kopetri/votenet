@@ -145,7 +145,7 @@ class ProposalFilter(torch.nn.Module):
 
     def forward(self, x, end_points):
         # x.shape (B, C+3, number_proposals)
-        end_points['proposal_pred'] = self.mlp(x)
+        end_points['proposal_pred'] = self.mlp(x.permute(0, 2, 1))
         return end_points
 
 class VoteNetModule(pl.LightningModule):
