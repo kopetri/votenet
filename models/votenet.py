@@ -72,13 +72,28 @@ class VoteNet(nn.Module):
 
     def compute_point_to_cluster_labels(self, end_points):
         point_features = end_points['point_clouds']# (B, N, P)
-        xyz = point_features[:, 0:3]
-        pred_centers = end_points['center']
-        proposals = end_points['proposals']         # (B, C, K)
+        xyz = point_features[:, 0:3] # (B, N, 3)
+        pred_centers = end_points['center'] # (B, K, 3)
         proposal_mask = end_points['proposal_mask'] # (B, K)
-        sematic_labels = end_points['semantic_labels'] # (B, N)
-        labels = torch.zeros((point_features.shape[0], point_features.shape[1])) # (B, N)
+
+        dist = self.compute_distance_A_B(pred_centers, xyz) # (B, K, N)
+        proposal_mask = proposal_mask.unsqueeze(-1).repeat(1,1,dist.shape[-1]) * 100 # (B, K, N)
+        dist += proposal_mask # make invalid proposal distances very high!
+        end_points['point_to_cluster_labels'] = torch.argmin(dist, dim=1) # (B, N)
         return end_points
+
+    def compute_distance_A_B(self, A, B):
+        N = A.shape[1]
+        M = B.shape[1]
+        X = torch.repeat_interleave(A, M, dim=1)
+        Y = B.repeat(1, N, 1)
+
+        diff = X - Y
+        diff = torch.pow(diff, 2)
+        diff = torch.sum(diff, dim=-1)
+        dist = torch.sqrt(diff)
+        dist = dist.reshape(-1, A.shape[1], B.shape[1])
+        return dist
 
     def compute_proposal_mask(self, end_points):
         pred_centers = end_points['center']
@@ -87,17 +102,7 @@ class VoteNet(nn.Module):
         # gt_centers.shape (B, N, 3)
         mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1])) # (B, K)
 
-        N = pred_centers.shape[1]
-        M = gt_centers.shape[1]
-        C = pred_centers.shape[-1]
-        X = torch.repeat_interleave(pred_centers, M, dim=1)
-        Y = gt_centers.repeat(1, N, 1)
-
-        diff = X - Y
-        diff = torch.pow(diff, 2)
-        diff = torch.sum(diff, dim=-1)
-        dist = torch.sqrt(diff)
-        dist = dist.reshape(-1, pred_centers.shape[1], gt_centers.shape[1])
+        dist = self.compute_distance_A_B(pred_centers, gt_centers)
         
         y = torch.argmin(dist, dim=1) # (B, 2)
         x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]).to(y) 
@@ -204,13 +209,14 @@ class VoteNetModule(pl.LightningModule):
                              vote_factor=self.opt.vote_factor,
                              sampling=self.opt.sampling)
         #self.criterion = VoteNetLoss(num_class=self.opt.num_class, num_heading_bin=self.opt.num_head_bin, num_size_cluster=self.opt.num_size_cluster, mean_size_arr=self.opt.mean_size_arr)
-        self.vote_loss       = VoteLoss()
-        self.objectness_loss = ObjectnessLoss()
-        self.size_loss       = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
-        self.head_loss       = HeadLoss(self.opt.num_head_bin)
-        self.center_loss     = CenterLoss()
-        self.sem_loss        = SematicLoss()
-        self.prop_loss       = nn.BCELoss()
+        self.vote_loss         = VoteLoss()
+        self.objectness_loss   = ObjectnessLoss()
+        self.size_loss         = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
+        self.head_loss         = HeadLoss(self.opt.num_head_bin)
+        self.center_loss       = CenterLoss()
+        self.sem_loss          = SematicLoss()
+        self.prop_loss         = nn.BCELoss()
+        self.segmentation_loss = nn.CrossEntropyLoss() 
 
     def forward(self, batch, batch_idx, name):
         B = batch["point_clouds"].shape[0]
@@ -227,9 +233,11 @@ class VoteNetModule(pl.LightningModule):
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
         seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
         probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
+        noise_mask = end_points['semantic_labels']
+        segl     = self.segmentation_loss(end_points['point_to_cluster_probabilities'][noise_mask], end_points['point_to_cluster_labels'][noise_mask])
         
         box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
-        loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl
+        loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl + segl
 
         self.log("{}_loss".format(name),             loss,       prog_bar=True, on_epoch=True, batch_size=B)
         self.log("{}_center_loss".format(name),      cl,         prog_bar=True, on_epoch=True, batch_size=B)
@@ -242,6 +250,7 @@ class VoteNetModule(pl.LightningModule):
         self.log("{}_vote_loss".format(name),        vl,         prog_bar=True, on_epoch=True, batch_size=B)
         self.log("{}_box_loss".format(name),         box_loss,   prog_bar=True, on_epoch=True, batch_size=B)
         self.log("{}_prop_loss".format(name),        probl,      prog_bar=True, on_epoch=True, batch_size=B)
+        self.log("{}_seg_loss".format(name),         segl,       prog_bar=True, on_epoch=True, batch_size=B)
         return loss
 
     def compute_votenet_loss(self, vote_loss, objectness_loss, box_loss, sem_cls_loss):
