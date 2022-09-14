@@ -160,7 +160,7 @@ class ClusterSeparationDataset(Dataset):
         ret_dict['box_label_mask'] = target_bboxes_mask.astype(np.float32)
         ret_dict['vote_label'] = point_votes.astype(np.float32)
         ret_dict['vote_label_mask'] = point_votes_mask.astype(np.int64)
-        ret_dict['plot_idx'] = np.array(idx).astype(np.int64)
+        ret_dict['plot_id'] = np.array(plot_id).astype(np.int64)
         #ret_dict['pcl_color'] = pcl_color
         return ret_dict
         

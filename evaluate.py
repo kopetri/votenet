@@ -7,6 +7,7 @@ from models.votenet import VoteNetModule
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from scatterplot.cluster_separation_dataset import ClusterSeparationDataset, ClusterSeparatonDatasetConfig
+import cv2
 
 if __name__ == '__main__':
     parser = ArgumentParser('Evaluate scatterplot model')
@@ -32,4 +33,9 @@ if __name__ == '__main__':
         num_workers=args.worker
     )
     
-    trainer.predict(model=model, dataloaders=test_loader)
+    images, plot_ids = trainer.predict(model=model, dataloaders=test_loader)
+    for img, pid in zip(images, plot_ids):
+        path = Path(args.ckpt).parent/"results"/"{}.jpg".format(pid)
+        img = img[..., ::-1] # rgb to bgr
+        cv2.imwrite(path.as_posix(), img)
+
