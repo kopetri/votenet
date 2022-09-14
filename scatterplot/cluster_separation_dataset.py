@@ -87,7 +87,7 @@ class ClusterSeparationDataset(Dataset):
         # votes = tuple(mask, bbox)
 
         point_cloud = vertices[:,0:3]
-    
+   
             
         # ------------------------------- LABELS ------------------------------        
         target_bboxes = np.zeros((MAX_NUM_OBJ, 6))
@@ -148,6 +148,7 @@ class ClusterSeparationDataset(Dataset):
         ret_dict = {}
         ret_dict['point_clouds'] = point_cloud.astype(np.float32)
         ret_dict['center_label'] = target_bboxes.astype(np.float32)[:,0:3]
+        ret_dict['bbox_dim'] = target_bboxes.astype(np.float32)[:,3:6]
         ret_dict['heading_class_label'] = angle_classes.astype(np.int64)
         ret_dict['heading_residual_label'] = angle_residuals.astype(np.float32)
         ret_dict['size_class_label'] = size_classes.astype(np.int64)
@@ -203,6 +204,16 @@ def viz_obb(pc, label, mask, angle_classes, angle_residuals,
 
     
 if __name__=='__main__': 
-    dataset = ClusterSeparationDataset(path="H:/data/sebi_onze_dataset/datasets/Onze", split="train", augment=True)
+    import cv2
+    from utils.scatterplot import draw_scatterplot
+    dataset = ClusterSeparationDataset(path="H:/data/sebi_onze_dataset/datasets/Onze", split="train", augment=False)
     for d in dataset:
+        points = d["point_clouds"] # (N, 3)
+        centers = d['center_label'] # (2, 3)
+        dim = d['bbox_dim'] # (2, 3)
+        bbox = np.concatenate([centers, dim], axis=1) # (2, 6)
+        img = draw_scatterplot(points, bbox=bbox)
+        img = img[...,::-1]
+        cv2.imshow("scatterplot", img)
+        cv2.waitKey(0)
         break

@@ -8,7 +8,6 @@
 Author: Charles R. Qi and Or Litany
 """
 
-from argparse import Namespace
 import torch
 import torch.nn as nn
 import numpy as np
@@ -16,9 +15,9 @@ import pytorch_lightning as pl
 from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
-from models.dump_helper import dump_results
 from models.loss_helper import VoteLoss, HeadLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss, compute_object_label_mask
 from utils.nn_distance import nn_distance
+from utils.scatterplot import draw_scatterplot
 
 
 class VoteNet(nn.Module):
@@ -168,6 +167,18 @@ class VoteNetModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         return self(batch, batch_idx, "test")
+
+    def predict_step(self, batch, batch_idx):
+        end_points = self.model(batch)
+
+        points = batch["point_clouds"].squeece(0).numpy() # (N, 3)
+        centers = batch['center_label'].squeece(0).numpy() # (2, 3)
+        dim = batch['bbox_dim'].squeece(0).numpy() # (2, 3)
+
+        bbox = np.concatenate([centers, dim], axis=1)
+        img = draw_scatterplot(points, bbox=bbox)
+        img = img[...,::-1]
+        return img
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
