@@ -10,7 +10,9 @@ from scatterplot.cluster_separation_dataset import ClusterSeparationDataset, Clu
 
 def parse_ckpt(path):
     assert Path(path).is_file(), "path must be a ckpt file!"  
-    return [p for p in Path(path).glob("**/*") if p.suffix == ".ckpt"][0].as_posix()
+    ckpt = [p for p in Path(path).glob("**/*") if p.suffix == ".ckpt"][0].as_posix()
+    print("Found checkpoint ", ckpt)
+    return ckpt
 
 if __name__ == '__main__':
     parser = ArgumentParser('Evaluate scatterplot model')
@@ -24,9 +26,9 @@ if __name__ == '__main__':
         devices=1,
     )
 
-    args.ckpt = parse_ckpt(args.ckpt)
+    ckpt = parse_ckpt(args.ckpt)
 
-    model = VoteNetModule(args)
+    model = VoteNetModule.load_from_checkpoint(ckpt)
 
     test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="test", num_points=model.opt.n_points)
 
