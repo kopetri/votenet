@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 
-def draw_scatterplot(points, sem=None, instance=None, bbox=None):
+def draw_scatterplot(points, sem=None, instance=None, bbox=None, pred=None):
     
     
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
@@ -18,8 +18,12 @@ def draw_scatterplot(points, sem=None, instance=None, bbox=None):
     if not bbox is None:
         for b in bbox:
             if b[3] == 0:continue
-            plt.plot(b[0], b[1], 'ro')
-            ax.add_patch(Rectangle((b[0]-b[3]*0.5,b[1]-b[4]*0.5), b[3], b[4], linewidth=1, edgecolor='r', facecolor='none'))
+            plt.plot(b[0], b[1], 'go')
+            ax.add_patch(Rectangle((b[0]-b[3]*0.5,b[1]-b[4]*0.5), b[3], b[4], linewidth=1, edgecolor='g', facecolor='none'))
+
+    if not pred is None:
+        for c in pred:
+            plt.plot(c[0], c[1], 'ro')
     
     
     fig.tight_layout(pad=0)
