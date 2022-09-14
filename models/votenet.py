@@ -67,7 +67,7 @@ class VoteNet(nn.Module):
         # Proposal Filtering
         self.prob_filter = ProposalFilter(C=2+3+num_heading_bin*2+num_size_cluster*4+num_class)
 
-    def compute_proposal_mask(end_points):
+    def compute_proposal_mask(self, end_points):
         pred_centers = end_points['center']
         gt_centers = end_points['center_label']
         # pred_centers.shape (B, M, 3)
@@ -90,7 +90,7 @@ class VoteNet(nn.Module):
         for ind, m in zip(indices, mask):
             for i in ind:
                 m[i] = 1.0
-        end_points['proposal_mask'] = mask
+        end_points['proposal_mask'] = mask.to(pred_centers)
         return end_points
 
 
@@ -145,7 +145,7 @@ class ProposalFilter(torch.nn.Module):
 
     def forward(self, x, end_points):
         # x.shape (B, C+3, number_proposals)
-        end_points['proposal_pred'] = self.mlp(x.permute(0, 2, 1))
+        end_points['proposal_pred'] = self.mlp(x.permute(0, 2, 1)).squeeze(-1)
         return end_points
 
 class VoteNetModule(pl.LightningModule):

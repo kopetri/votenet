@@ -26,7 +26,8 @@ if __name__ == '__main__':
         devices=1,
     )
 
-    model = VoteNetModule.load_from_checkpoint(parse_ckpt(args.ckpt))
+    ckpt = parse_ckpt(args.ckpt)
+    model = VoteNetModule.load_from_checkpoint(ckpt)
 
     test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="test", num_points=model.opt.n_points)
 
@@ -37,9 +38,10 @@ if __name__ == '__main__':
         num_workers=args.worker
     )
     
-    images, plot_ids = trainer.predict(model=model, dataloaders=test_loader)
-    for img, pid in zip(images, plot_ids):
-        path = Path(args.ckpt).parent/"results"/"{}.jpg".format(pid)
+    results = trainer.predict(model=model, dataloaders=test_loader)
+    for result in results:
+        img, pid = result[0], result[1]
+        path = Path(ckpt).parent/"results"/"{}.jpg".format(pid)
         path.parent.mkdir(parents=True, exist_ok=True)
         img = img[..., ::-1] # rgb to bgr
         cv2.imwrite(path.as_posix(), img)

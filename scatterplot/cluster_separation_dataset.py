@@ -44,7 +44,7 @@ class ClusterSeparationDataset(Dataset):
 
     def load_split(self):
         with open(self.path/"{}.txt".format(self.split), "r") as splitfile:
-            return [s.strip() for s in splitfile.readlines()]
+            return [s.strip() for s in splitfile.readlines()][0:10]
         
     def compute_mean_size_arr(self):
         size_arr_a = []
