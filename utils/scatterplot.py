@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 
-def draw_scatterplot(points, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None):
+def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:cyan'}
     new_cmap = rand_cmap(100, type='bright', first_color_black=True, last_color_black=False, verbose=True)
@@ -10,10 +10,11 @@ def draw_scatterplot(points, sem=None, instance=None, bbox=None, pred=None, seg_
     plt.axis('off')
         
     
-    plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=2)
+    if not points is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=2)
     if not sem is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=10, color=[colors_sem[i] for i in sem])
     if not instance is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=2, color=[colors[i] for i in instance])
-    if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=2, color=new_cmap)
+    if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=50, c=seg_pred, cmap=new_cmap, vmin=0, vmax=100)
+    if not seg_gt is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=seg_gt, cmap=new_cmap, vmin=0, vmax=100)
     
     if not bbox is None:
         for b in bbox:
