@@ -75,6 +75,7 @@ class VoteNet(nn.Module):
         xyz = point_features[:,:, 0:3] # (B, N, 3)
         pred_centers = end_points['center'] # (B, K, 3)
         proposal_mask = end_points['proposal_mask'] # (B, K)
+        proposal_mask = (~proposal_mask.bool()).float() # invert
 
         dist = self.compute_distance_A_B(pred_centers, xyz) # (B, K, N)
         proposal_mask = proposal_mask.unsqueeze(-1).repeat(1,1,dist.shape[-1]) * 100 # (B, K, N)
