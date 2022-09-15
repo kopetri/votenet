@@ -1,6 +1,3 @@
-import torch
-import sys
-import random
 from pathlib import Path
 from argparse import ArgumentParser
 from models.votenet import VoteNetModule
@@ -8,6 +5,7 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from scatterplot.cluster_separation_dataset import ClusterSeparationDataset
 import cv2
+import numpy as np
 
 def parse_ckpt(path):
     ckpt = [p for p in Path(path).glob("**/*") if p.suffix == ".ckpt"][0].as_posix()
@@ -46,9 +44,15 @@ if __name__ == '__main__':
     
     results = trainer.predict(model=model, dataloaders=test_loader)
     for result in results:
-        img, pid = result[0], result[1]
+        img, pid, points, gt_centers, pred_centers = result[0], result[1], result[2], result[3], result[4]
         path = Path(ckpt).parent/"results"/"{}.jpg".format(pid)
+        path_points = Path(ckpt).parent/"results"/"points_{}.npy".format(pid)
+        path_gt = Path(ckpt).parent/"results"/"gt_{}.npy".format(pid)
+        path_pred = Path(ckpt).parent/"results"/"pred_{}.npy".format(pid)
         path.parent.mkdir(parents=True, exist_ok=True)
         img = img[..., ::-1] # rgb to bgr
         cv2.imwrite(path.as_posix(), img)
+        np.save(path_points, points)
+        np.save(path_gt, gt_centers)
+        np.save(path_pred, pred_centers)
 

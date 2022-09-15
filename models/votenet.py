@@ -283,7 +283,7 @@ class VoteNetModule(pl.LightningModule):
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, seg_gt=point2cluster_gt)
         img = img[...,::-1]
-        return img, batch["plot_id"].squeeze(0).cpu().item()
+        return img, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
