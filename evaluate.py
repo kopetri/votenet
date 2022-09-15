@@ -44,14 +44,16 @@ if __name__ == '__main__':
     
     results = trainer.predict(model=model, dataloaders=test_loader)
     for result in results:
-        img, pid, points, gt_centers, pred_centers = result[0], result[1], result[2], result[3], result[4]
-        path = Path(ckpt).parent/"results"/"{}.jpg".format(pid)
+        img_gt, img_pred, pid, points, gt_centers, pred_centers = result[0], result[1], result[2], result[3], result[4], result[5]
+        path_gt     = Path(ckpt).parent/"results"/"gt_{}.jpg".format(pid)
+        path_pred   = Path(ckpt).parent/"results"/"pred_{}.jpg".format(pid)
         path_points = Path(ckpt).parent/"results"/"points_{}.npy".format(pid)
-        path_gt = Path(ckpt).parent/"results"/"gt_{}.npy".format(pid)
-        path_pred = Path(ckpt).parent/"results"/"pred_{}.npy".format(pid)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        img = img[..., ::-1] # rgb to bgr
-        cv2.imwrite(path.as_posix(), img)
+        path_gt     = Path(ckpt).parent/"results"/"gt_{}.npy".format(pid)
+        path_pred   = Path(ckpt).parent/"results"/"pred_{}.npy".format(pid)
+        path_gt.parent.mkdir(parents=True, exist_ok=True)
+        
+        cv2.imwrite(path_gt.as_posix(), img_gt)
+        cv2.imwrite(path_pred.as_posix(), path_pred)
         np.save(path_points, points)
         np.save(path_gt, gt_centers)
         np.save(path_pred, pred_centers)
