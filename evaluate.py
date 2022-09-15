@@ -19,6 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--worker', default=8, type=int, help='Number of workers for data loader')
     parser.add_argument('--dataset_path', required=True, type=str, help='Path to data set.')
     parser.add_argument('--ckpt', required=True, type=str, help='Path to checkpoint file.')
+    parser.add_argument('--small', action='store_true', help="Fast evaluation with only 10 datapoints.")
     args = parser.parse_args()
 
     trainer = pl.Trainer(
@@ -26,10 +27,15 @@ if __name__ == '__main__':
         devices=1,
     )
 
+    if args.small:
+        split = "test_small"
+    else:
+        split = "test"
+
     ckpt = parse_ckpt(args.ckpt)
     model = VoteNetModule.load_from_checkpoint(ckpt)
 
-    test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="test", num_points=model.opt.n_points)
+    test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split=split, num_points=model.opt.n_points)
 
     test_loader = DataLoader(
         test_dataset,
