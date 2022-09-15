@@ -238,18 +238,18 @@ class VoteNetModule(pl.LightningModule):
         box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl + segl
 
-        self.log("{}_loss".format(name),             loss,       prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_center_loss".format(name),      cl,         prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_objectness_loss".format(name),  ol,         prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_heading_cls_loss".format(name), hcl,        prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_heading_reg_loss".format(name), hrl,        prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_size_cls_loss".format(name),    scl,        prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_size_reg_loss".format(name),    srl,        prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_sem_cls_loss".format(name),     seml,       prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_vote_loss".format(name),        vl,         prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_box_loss".format(name),         box_loss,   prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_prop_loss".format(name),        probl,      prog_bar=True, on_epoch=True, batch_size=B)
-        self.log("{}_seg_loss".format(name),         segl,       prog_bar=True, on_epoch=True, batch_size=B)
+        self.log("{}_loss".format(name),             loss,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_center_loss".format(name),      cl,         prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_objectness_loss".format(name),  ol,         prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_heading_cls_loss".format(name), hcl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_heading_reg_loss".format(name), hrl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_size_cls_loss".format(name),    scl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_size_reg_loss".format(name),    srl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_sem_cls_loss".format(name),     seml,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_vote_loss".format(name),        vl,         prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_box_loss".format(name),         box_loss,   prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_prop_loss".format(name),        probl,      prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        self.log("{}_seg_loss".format(name),         segl,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
         return loss
 
     def compute_votenet_loss(self, vote_loss, objectness_loss, box_loss, sem_cls_loss):
