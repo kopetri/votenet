@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', default="pointcloud", type=str, help='Name of output folder.')
     parser.add_argument('--use_augmentation', action='store_true', help="Whether to use data augmentation")
     parser.add_argument('--n_points', default=500, type=int, help="Whether to use data augmentation")
-    parser.add_argument('--num_proposal', default=256, type=int, help="Whether to use data augmentation")
+    parser.add_argument('--num_proposal', default=10, type=int, help="Whether to use data augmentation")
     parser.add_argument('--input_feature_dim', default=0, type=int, help="Whether to use data augmentation")
     parser.add_argument('--vote_factor', default=1, type=int, help="Whether to use data augmentation")
     parser.add_argument('--sampling', default='vote_fps', type=str, help="sampling strategy")

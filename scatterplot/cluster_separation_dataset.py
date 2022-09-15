@@ -14,8 +14,7 @@ from torch.utils.data import Dataset
 from pathlib import Path
 from utils.pc_util import random_sampling, rotz, rotate_aligned_boxes
 
-MAX_NUM_OBJ = 64
-MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
+MAX_NUM_OBJ = 2
 
 class ClusterSeparatonDatasetConfig(object):
     def __init__(self):
