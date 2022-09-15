@@ -31,7 +31,8 @@ class ClusterSeparatonDatasetConfig(object):
 class ClusterSeparationDataset(Dataset):
        
     def __init__(self, path, split='train', num_points=5000, use_color=False, use_height=False, augment=False):
-        self.split = split
+        self.use_small = "small" in split
+        self.split = split.replace("_small", "")
         self.path = Path(path)
         self.num_points = num_points
         self.use_color = use_color        
@@ -39,12 +40,15 @@ class ClusterSeparationDataset(Dataset):
         self.augment = augment
         self.ids = self.load_split()
         self.mean_size_arr = self.compute_mean_size_arr()
+        if self.use_small: print("DEBUG using small version!")
         print("Found {} scatterplots for split {}".format(len(self.ids), split))
         print("Mean size arr: ", self.mean_size_arr)
 
     def load_split(self):
         with open(self.path/"{}.txt".format(self.split), "r") as splitfile:
-            return [s.strip() for s in splitfile.readlines()]
+            lines = [s.strip() for s in splitfile.readlines()]
+            if self.use_small: lines = lines[0:10]
+            return lines
         
     def compute_mean_size_arr(self):
         size_arr_a = []
