@@ -275,9 +275,12 @@ class VoteNetModule(pl.LightningModule):
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         pred_centers = end_points['center'].squeeze(0).cpu().numpy()
         dim = batch['bbox_dim'].squeeze(0).cpu().numpy() # (2, 3)
+        point2cluster_pred = end_points['point_to_cluster_probabilities'].squeeze(0).cpu().softmax(dim=0) # (K, N)
+        point2cluster_pred = torch.argmax(point2cluster_pred, dim=0).numpy() # (N)
+        point2cluster_gt = end_points['point_to_cluster_labels'].squeeze(0).cpu().numpy() # (N)
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
-        img = draw_scatterplot(points, pred=pred_centers, bbox=bbox)
+        img = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, seg_gt=point2cluster_gt)
         img = img[...,::-1]
         return img, batch["plot_id"].squeeze(0).cpu().item()
 
