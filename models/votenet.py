@@ -12,7 +12,7 @@ from turtle import forward
 import torch
 import torch.nn as nn
 import numpy as np
-import pytorch_lightning as pl
+from pytorch_utils.module import LightningModule
 from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
@@ -195,15 +195,9 @@ class PointToClusterModule(torch.nn.Module):
         end_points['point_to_cluster_probabilities'] = feat.permute(0,2,1)
         return end_points
 
-class VoteNetModule(pl.LightningModule):
-    def __init__(self, opt=None, **kwargs):
-        super().__init__()
-        if opt is None:
-            # loaded from checkpoint
-            self.opt = Namespace(kwargs)
-        else:
-            self.save_hyperparameters(vars(opt))
-        self.opt = opt
+class VoteNetModule(LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.model = VoteNet(num_class=self.opt.num_class,
                              num_heading_bin=self.opt.num_head_bin,
                              num_size_cluster=self.opt.num_size_cluster,
@@ -221,7 +215,7 @@ class VoteNetModule(pl.LightningModule):
         self.prop_loss         = nn.BCELoss()
         self.segmentation_loss = nn.CrossEntropyLoss(reduction='none') 
 
-    def forward(self, batch, batch_idx, name):
+    def forward(self, batch, batch_idx, split):
         B = batch["point_clouds"].shape[0]
 
         end_points = self.model(batch)
@@ -240,19 +234,19 @@ class VoteNetModule(pl.LightningModule):
         box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl + segl
 
-        self.log("{}_loss".format(name),             loss,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_center_loss".format(name),      cl,         prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_objectness_loss".format(name),  ol,         prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_heading_cls_loss".format(name), hcl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_heading_reg_loss".format(name), hrl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_size_cls_loss".format(name),    scl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_size_reg_loss".format(name),    srl,        prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_sem_cls_loss".format(name),     seml,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_vote_loss".format(name),        vl,         prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_box_loss".format(name),         box_loss,   prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_prop_loss".format(name),        probl,      prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        self.log("{}_seg_loss".format(name),         segl,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
-        if batch_idx == 0 and name == "valid":
+        self.log_value("loss",             loss,     split=split, batch_size=B)
+        self.log_value("center_loss",      cl,       split=split, batch_size=B)
+        self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
+        self.log_value("heading_cls_loss", hcl,      split=split, batch_size=B)
+        self.log_value("heading_reg_loss", hrl,      split=split, batch_size=B)
+        self.log_value("size_cls_loss",    scl,      split=split, batch_size=B)
+        self.log_value("size_reg_loss",    srl,      split=split, batch_size=B)
+        self.log_value("sem_cls_loss",     seml,     split=split, batch_size=B)
+        self.log_value("vote_loss",        vl,       split=split, batch_size=B)
+        self.log_value("box_loss",         box_loss, split=split, batch_size=B)
+        self.log_value("prop_loss",        probl,    split=split, batch_size=B)
+        self.log_value("seg_loss",         segl,     split=split, batch_size=B)
+        if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, end_points)
         return loss
 
@@ -263,15 +257,6 @@ class VoteNetModule(pl.LightningModule):
 
     def compute_box_loss(self, center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss):
         return center_loss + 0.1 * heading_cls_loss + heading_reg_loss + 0.1 * size_cls_loss + size_reg_loss
-
-    def training_step(self, batch, batch_idx):
-        return self(batch, batch_idx, "train")
-
-    def validation_step(self, batch, batch_idx):
-        return self(batch, batch_idx, "valid")
-
-    def test_step(self, batch, batch_idx):
-        return self(batch, batch_idx, "test")
 
     def predict_step(self, batch, batch_idx):
         end_points = self.model(batch)
@@ -294,8 +279,8 @@ class VoteNetModule(pl.LightningModule):
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, objectness_score=objectness_score)
         img_gt   = draw_scatterplot(points, bbox=bbox, seg_gt=point2cluster_gt)
-        if log: self.logger.log_image(key='valid_pred', images=[img_pred])
-        if log: self.logger.log_image(key='valid_gt', images=[img_gt])
+        if log: self.log_image(key='valid_pred', images=[img_pred])
+        if log: self.log_image(key='valid_gt', images=[img_gt])
         return img_gt, img_pred, points, gt_centers, pred_centers
 
     def configure_optimizers(self):
