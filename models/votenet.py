@@ -7,7 +7,7 @@
 
 Author: Charles R. Qi and Or Litany
 """
-
+from argparse import Namespace
 from turtle import forward
 import torch
 import torch.nn as nn
@@ -196,9 +196,13 @@ class PointToClusterModule(torch.nn.Module):
         return end_points
 
 class VoteNetModule(pl.LightningModule):
-    def __init__(self, opt):
+    def __init__(self, opt=None, **kwargs):
         super().__init__()
-        self.save_hyperparameters()
+        if opt is None:
+            # loaded from checkpoint
+            self.opt = Namespace(kwargs)
+        else:
+            self.save_hyperparameters(vars(opt))
         self.opt = opt
         self.model = VoteNet(num_class=self.opt.num_class,
                              num_heading_bin=self.opt.num_head_bin,
