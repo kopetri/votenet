@@ -196,8 +196,8 @@ class PointToClusterModule(torch.nn.Module):
         return end_points
 
 class VoteNetModule(LightningModule):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(VoteNetModule, self).__init__(*args, **kwargs)
         self.model = VoteNet(num_class=self.opt.num_class,
                              num_heading_bin=self.opt.num_head_bin,
                              num_size_cluster=self.opt.num_size_cluster,
