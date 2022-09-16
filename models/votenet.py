@@ -277,9 +277,11 @@ class VoteNetModule(pl.LightningModule):
         point2cluster_pred = end_points['point_to_cluster_probabilities'].squeeze(0).cpu().softmax(dim=0) # (K, N)
         point2cluster_pred = torch.argmax(point2cluster_pred, dim=0).numpy() # (N)
         point2cluster_gt = end_points['point_to_cluster_labels'].squeeze(0).cpu().numpy() # (N)
+        objectness_score = end_points['objectness_score'].squeeze(0).cpu().softmax(dim=1).numpy() # (K, 2)
+        objectness_score = np.argmax(objectness_score, axis=1) # (K)
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
-        img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred)
+        img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, objectness_score=objectness_score)
         img_gt   = draw_scatterplot(points, bbox=bbox, seg_gt=point2cluster_gt)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]

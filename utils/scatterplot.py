@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 
-def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None):
+def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:cyan'}
     new_cmap = rand_cmap(256, type='bright', first_color_black=True, last_color_black=False, verbose=False)
@@ -23,8 +23,11 @@ def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None,
             ax.add_patch(Rectangle((b[0]-b[3]*0.5,b[1]-b[4]*0.5), b[3], b[4], linewidth=1, edgecolor='g', facecolor='none'))
 
     if not pred is None:
-        for c in pred:
-            plt.plot(c[0], c[1], 'ro')
+        for i,c in enumerate(pred):
+            if objectness_score is None or objectness_score[i]:
+                plt.plot(c[0], c[1], 'ro')
+            else:
+                plt.plot(c[0], c[1], 'rx')
     
     
     fig.tight_layout(pad=0)
