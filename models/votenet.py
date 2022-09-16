@@ -208,7 +208,6 @@ class VoteNetModule(pl.LightningModule):
                              input_feature_dim=self.opt.input_feature_dim,
                              vote_factor=self.opt.vote_factor,
                              sampling=self.opt.sampling)
-        #self.criterion = VoteNetLoss(num_class=self.opt.num_class, num_heading_bin=self.opt.num_head_bin, num_size_cluster=self.opt.num_size_cluster, mean_size_arr=self.opt.mean_size_arr)
         self.vote_loss         = VoteLoss()
         self.objectness_loss   = ObjectnessLoss()
         self.size_loss         = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
@@ -226,28 +225,14 @@ class VoteNetModule(pl.LightningModule):
         _, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], end_points['center_label'][:,:,0:3])
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
         
-        
-        
-        if self.current_epoch < 20:
-            vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
-            ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
-            scl, srl = self.size_loss(end_points['size_scores'], end_points['size_class_label'], end_points['size_residual_label'], end_points['size_residuals_normalized'], object_assignment, objectness_label)
-            hcl, hrl = self.head_loss(end_points['heading_class_label'], end_points['heading_scores'], end_points['heading_residual_label'], end_points['heading_residuals_normalized'], object_assignment, objectness_label)
-            cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
-            seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
-            probl    = 0
-            segl     = 0
-             
-        else:
-            vl       = 0
-            ol       = 0
-            scl, srl = 0,0
-            hcl, hrl = 0,0
-            cl       = 0
-            seml     = 0
-            probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
-            segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels'])[end_points['semantic_labels'].bool()])
-
+        vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
+        ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
+        scl, srl = self.size_loss(end_points['size_scores'], end_points['size_class_label'], end_points['size_residual_label'], end_points['size_residuals_normalized'], object_assignment, objectness_label)
+        hcl, hrl = self.head_loss(end_points['heading_class_label'], end_points['heading_scores'], end_points['heading_residual_label'], end_points['heading_residuals_normalized'], object_assignment, objectness_label)
+        cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
+        seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
+        probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
+        segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels'])[end_points['semantic_labels'].bool()])
         box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl + segl
 
