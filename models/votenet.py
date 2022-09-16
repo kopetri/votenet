@@ -290,8 +290,8 @@ class VoteNetModule(pl.LightningModule):
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, objectness_score=objectness_score)
         img_gt   = draw_scatterplot(points, bbox=bbox, seg_gt=point2cluster_gt)
-        if log: self.logger.experimental.log_image(key='valid_pred', images=[img_pred])
-        if log: self.logger.experimental.log_image(key='valid_gt', images=[img_gt])
+        if log: self.logger.log_image(key='valid_pred', images=[img_pred])
+        if log: self.logger.log_image(key='valid_gt', images=[img_gt])
         return img_gt, img_pred, points, gt_centers, pred_centers
 
     def configure_optimizers(self):
