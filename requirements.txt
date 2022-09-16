@@ -1,3 +1,5 @@
+pytorch_utils
+git+https://github.com/kopetri/PyTorch-Learning-Utils@master#egg=pytorch_utils
 matplotlib
 opencv-python
 plyfile
