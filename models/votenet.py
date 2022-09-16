@@ -271,12 +271,12 @@ class VoteNetModule(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         end_points = self.model(batch)
-        img_gt, img_pred, points, gt_centers, pred_centers = self.visualize_prediction(batch, end_points)
+        img_gt, img_pred, points, gt_centers, pred_centers = self.visualize_prediction(batch, end_points, log=False)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]
         return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
 
-    def visualize_prediction(self, batch, end_points):
+    def visualize_prediction(self, batch, end_points, log=True):
         points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         pred_centers = end_points['center'].squeeze(0).cpu().numpy()
@@ -290,8 +290,8 @@ class VoteNetModule(pl.LightningModule):
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, objectness_score=objectness_score)
         img_gt   = draw_scatterplot(points, bbox=bbox, seg_gt=point2cluster_gt)
-        if self.logger: self.logger.experimental.log_image(key='valid_pred', images=[img_pred])
-        if self.logger: self.logger.experimental.log_image(key='valid_gt', images=[img_gt])
+        if log: self.logger.experimental.log_image(key='valid_pred', images=[img_pred])
+        if log: self.logger.experimental.log_image(key='valid_gt', images=[img_gt])
         return img_gt, img_pred, points, gt_centers, pred_centers
 
     def configure_optimizers(self):
