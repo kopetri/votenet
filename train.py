@@ -108,8 +108,8 @@ if __name__ == '__main__':
         callbacks=callbacks
     )
 
-    train_dataset = ClusterSeparationDataset(path=args.dataset_path, split="train", num_points=args.n_points)
-    val_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="valid", num_points=args.n_points)
+    train_dataset = ClusterSeparationDataset(path=args.dataset_path, split="train", num_points=args.n_points, keep_choices=False)
+    val_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="valid", num_points=args.n_points, keep_choices=True)
 
     config = ClusterSeparatonDatasetConfig()
 
