@@ -248,6 +248,8 @@ class VoteNetModule(pl.LightningModule):
         self.log("{}_box_loss".format(name),         box_loss,   prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
         self.log("{}_prop_loss".format(name),        probl,      prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
         self.log("{}_seg_loss".format(name),         segl,       prog_bar=True, on_epoch=not name=="train", on_step=name=="train", batch_size=B)
+        if batch_idx == 0 and name == "valid":
+            self.visualize_prediction(batch, end_points)
         return loss
 
     def compute_votenet_loss(self, vote_loss, objectness_loss, box_loss, sem_cls_loss):
@@ -269,7 +271,12 @@ class VoteNetModule(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         end_points = self.model(batch)
+        img_gt, img_pred, points, gt_centers, pred_centers = self.visualize_prediction(batch, end_points)
+        img_pred = img_pred[...,::-1]
+        img_gt = img_gt[...,::-1]
+        return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
 
+    def visualize_prediction(self, batch, end_points):
         points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         pred_centers = end_points['center'].squeeze(0).cpu().numpy()
@@ -283,9 +290,9 @@ class VoteNetModule(pl.LightningModule):
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_pred=point2cluster_pred, objectness_score=objectness_score)
         img_gt   = draw_scatterplot(points, bbox=bbox, seg_gt=point2cluster_gt)
-        img_pred = img_pred[...,::-1]
-        img_gt = img_gt[...,::-1]
-        return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
+        if self.logger: self.logger.experimental.log_image(key='valid_pred', images=[img_pred])
+        if self.logger: self.logger.experimental.log_image(key='valid_gt', images=[img_gt])
+        return img_gt, img_pred, points, gt_centers, pred_centers
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
