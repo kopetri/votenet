@@ -108,9 +108,6 @@ class VoteNet(nn.Module):
         y = torch.argmin(dist, dim=1) # (B, 2)
         x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]).to(y) 
         indices = torch.stack([x,y], dim=2).view(y.shape[1] * y.shape[0], 2).permute(1,0).tolist()
-        #for ind, m in zip(indices, mask):
-        #    for i in ind:
-        #        m[i] = 1.0
         mask[indices] = 1.0
         end_points['proposal_mask'] = mask.to(pred_centers)
         return end_points
@@ -230,7 +227,7 @@ class VoteNetModule(LightningModule):
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
         seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
         probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
-        segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels'])[end_points['semantic_labels'].bool()])
+        segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels']))
         box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         loss = self.compute_votenet_loss(vl, ol, box_loss, seml) + probl + segl
 

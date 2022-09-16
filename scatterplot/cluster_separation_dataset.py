@@ -42,7 +42,7 @@ class ClusterSeparationDataset(Dataset):
         if self.use_small: print("DEBUG using small version!")
         print("Found {} scatterplots for split {}".format(len(self.ids), split))
         print("Mean size arr: ", self.mean_size_arr)
-        self.choices = np.zeros((self.__len__(), num_points))
+        self.choices = -np.ones((self.__len__(), num_points))
         self.keep_choices = keep_choices
 
     def load_split(self):
@@ -102,13 +102,16 @@ class ClusterSeparationDataset(Dataset):
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         
-        _, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
         if self.keep_choices:
-            if all([c == 0 for c in self.choices[idx]]):
+            if self.choices[idx][0] < 0:
+                point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
                 self.choices[idx] = choices
             else:
                 choices = self.choices[idx]
-        point_cloud     = point_cloud[choices]
+                point_cloud = point_cloud[choices]
+        else:
+            point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
+        
         instance_labels = instance_labels[choices]
         semantic_labels = semantic_labels[choices]
                 
