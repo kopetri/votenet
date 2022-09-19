@@ -403,7 +403,7 @@ class SegmentationLoss(torch.nn.Module):
         return torch.mean(segmentation_loss)
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
-    def __compute_distance_A_B(self, A, B):
+    def __compute_distance_A_B(A, B):
         N = A.shape[1]
         M = B.shape[1]
         X = torch.repeat_interleave(A, M, dim=1)
