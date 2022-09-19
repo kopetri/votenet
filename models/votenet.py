@@ -209,7 +209,7 @@ class VoteNetModule(LightningModule):
         #segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels']))
         #box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         #loss = self.compute_votenet_loss(vl, ol, box_loss, seml)
-        sl       = self.segmentation_loss(end_points['segmentation_probabilities'], segmentation_label)
+        sl       = self.segmentation_loss(end_points['segmentation_pred'], segmentation_label)
         loss = (vl + ol + cl + sl) / 4.0
         loss *= 10
 
