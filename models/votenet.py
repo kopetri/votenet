@@ -133,7 +133,7 @@ class VoteNet(nn.Module):
         batch_size = inputs['point_clouds'].shape[0]
 
         # generate features
-        end_points = self.backbone_feat(inputs['point_clouds'], end_points)
+        end_points = self.backbone_feat(end_points)
 
         end_points = self.backbone_net(end_points['point_clouds_feat'], end_points)
                 
