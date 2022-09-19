@@ -35,7 +35,7 @@ class Pointnet2Backbone(nn.Module):
 
 
         end_points['point_features'] = l0_points.permute(0, 2, 1)
-        end_points['point_clouds_feat'] = torch.cat([end_points['point_clouds'], end_points["point_features"]], dim=2)
+        end_points['point_clouds'] = torch.cat([end_points['point_clouds'], end_points["point_features"]], dim=2)
         return end_points
 
         

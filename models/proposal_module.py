@@ -11,43 +11,21 @@ import numpy as np
 from pointnet2.pointnet2_modules import PointnetSAModuleVotes
 from pointnet2 import pointnet2_utils
 
-def decode_scores(net, end_points, num_class, num_heading_bin, num_size_cluster, mean_size_arr):
+def decode_scores(net, end_points):
     net_transposed = net.transpose(2,1) # (batch_size, 1024, ..)
-    #batch_size = net_transposed.shape[0]
-    #num_proposal = net_transposed.shape[1]
-
     objectness_scores = net_transposed[:,:,0:2]
     end_points['objectness_scores'] = objectness_scores
     
     base_xyz = end_points['aggregated_vote_xyz'] # (batch_size, num_proposal, 3)
     center = base_xyz + net_transposed[:,:,2:5] # (batch_size, num_proposal, 3)
     end_points['center'] = center
-
-    #heading_scores = net_transposed[:,:,5:5+num_heading_bin]
-    #heading_residuals_normalized = net_transposed[:,:,5+num_heading_bin:5+num_heading_bin*2]
-    #end_points['heading_scores'] = heading_scores # Bxnum_proposalxnum_heading_bin
-    #end_points['heading_residuals_normalized'] = heading_residuals_normalized # Bxnum_proposalxnum_heading_bin (should be -1 to 1)
-    #end_points['heading_residuals'] = heading_residuals_normalized * (np.pi/num_heading_bin) # Bxnum_proposalxnum_heading_bin
-
-    #size_scores = net_transposed[:,:,5+num_heading_bin*2:5+num_heading_bin*2+num_size_cluster]
-    #size_residuals_normalized = net_transposed[:,:,5+num_heading_bin*2+num_size_cluster:5+num_heading_bin*2+num_size_cluster*4].view([batch_size, num_proposal, num_size_cluster, 3]) # Bxnum_proposalxnum_size_clusterx3
-    #end_points['size_scores'] = size_scores
-    #end_points['size_residuals_normalized'] = size_residuals_normalized
-    #end_points['size_residuals'] = size_residuals_normalized * torch.from_numpy(mean_size_arr.astype(np.float32)).cuda().unsqueeze(0).unsqueeze(0)
-
-    #sem_cls_scores = net_transposed[:,:,5+num_heading_bin*2+num_size_cluster*4:] # Bxnum_proposalx10
-    #end_points['sem_cls_scores'] = sem_cls_scores
     return end_points
 
 
 class ProposalModule(nn.Module):
-    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, seed_feat_dim=256):
+    def __init__(self, num_proposal, sampling, seed_feat_dim=256):
         super().__init__() 
 
-        self.num_class = num_class
-        self.num_heading_bin = num_heading_bin
-        self.num_size_cluster = num_size_cluster
-        self.mean_size_arr = mean_size_arr
         self.num_proposal = num_proposal
         self.sampling = sampling
         self.seed_feat_dim = seed_feat_dim
@@ -105,7 +83,7 @@ class ProposalModule(nn.Module):
         net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
         end_points['proposals'] = net
 
-        end_points = decode_scores(net, end_points, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
+        end_points = decode_scores(net, end_points)
         return end_points
 
 if __name__=='__main__':

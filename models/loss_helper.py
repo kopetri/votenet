@@ -391,6 +391,40 @@ class ObjectnessLoss(torch.nn.Module):
         objectness_loss = torch.sum(objectness_loss * objectness_mask)/(torch.sum(objectness_mask)+1e-6)
         return objectness_loss
 
+class SegmentationLoss(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.criterion = nn.CrossEntropyLoss(reduction='none')
+
+    def forward(self, segmentation_pred, segmentation_labels, noise_mask=False):
+        # segmentation_pred.shape (B, N, K)
+        # segmentation_labels.shape (B, N)
+        segmentation_loss = self.criterion(segmentation_pred.transpose(2,1), segmentation_labels)
+        if noise_mask is None:
+            segmentation_loss[noise_mask]
+        return torch.mean(segmentation_loss)
+
+def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
+    mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1])) # (B, K)
+    dist, _, _, _ = nn_distance(pred_centers, gt_centers)
+    
+    y = torch.argmin(dist, dim=1) # (B, 2)
+    x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]).to(y) 
+    indices = torch.stack([x,y], dim=2).view(y.shape[1] * y.shape[0], 2).permute(1,0).tolist()
+    mask[indices] = 1.0
+    proposal_mask = mask.to(pred_centers)
+
+    xyz = point_features[:,:, 0:3] # (B, N, 3)
+    proposal_mask = (~proposal_mask.bool()).float() # invert
+
+    dist, _, _, _ = nn_distance(pred_centers, xyz) # (B, K, N)
+    proposal_mask = proposal_mask.unsqueeze(-1).repeat(1,1,dist.shape[-1]) * 100 # (B, K, N)
+    dist += proposal_mask # make invalid proposal distances very high!
+    point_to_cluster_labels = torch.argmin(dist, dim=1) # (B, N)
+    point_to_cluster_labels += 1 # move labels => class idx 0 is noise
+    point_to_cluster_labels[noise_label==0] = 0
+    return point_to_cluster_labels
+
 def compute_object_label_mask(aggregated_vote_xyz, center_label):
     gt_center = center_label[:,:,0:3]
     B = gt_center.shape[0]
