@@ -7,19 +7,17 @@
 
 Author: Charles R. Qi and Or Litany
 """
-from argparse import Namespace
-from turtle import forward
 import torch
 import torch.nn as nn
 import numpy as np
 from pytorch_utils.module import LightningModule
 from models.backbone_module import Pointnet2Backbone
+from models.pointnet2 import Pointnet2Backbone as Pointnet2Features
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, HeadLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss, compute_object_label_mask
 from utils.nn_distance import nn_distance
 from utils.scatterplot import draw_scatterplot
-
 
 class VoteNet(nn.Module):
     r"""
@@ -53,6 +51,9 @@ class VoteNet(nn.Module):
         self.num_proposal = num_proposal
         self.vote_factor = vote_factor
         self.sampling=sampling
+
+        # Point Features
+        self.backbone_feat = Pointnet2Features(output_feature_dim=self.input_feature_dim)
 
         # Backbone point feature learning
         self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
@@ -131,12 +132,15 @@ class VoteNet(nn.Module):
         end_points = inputs
         batch_size = inputs['point_clouds'].shape[0]
 
-        end_points = self.backbone_net(inputs['point_clouds'], end_points)
+        # generate features
+        end_points = self.backbone_feat(inputs['point_clouds'], end_points)
+
+        end_points = self.backbone_net(end_points['point_clouds_feat'], end_points)
                 
         # --------- HOUGH VOTING ---------
         xyz = end_points['fp2_xyz']
         features = end_points['fp2_features']
-        end_points['seed_inds'] = end_points['fp2_inds']
+        #end_points['seed_inds'] = end_points['fp2_inds']
         end_points['seed_xyz'] = xyz
         end_points['seed_features'] = features
         
@@ -148,11 +152,11 @@ class VoteNet(nn.Module):
 
         end_points = self.pnet(xyz, features, end_points)
 
-        end_points = self.prob_filter(end_points)
-        end_points = self.compute_proposal_mask(end_points)
+        #end_points = self.prob_filter(end_points)
+        #end_points = self.compute_proposal_mask(end_points)
 
-        end_points = self.compute_point_to_cluster_labels(end_points)
-        end_points = self.point2cluster(end_points)
+        #end_points = self.compute_point_to_cluster_labels(end_points)
+        #end_points = self.point2cluster(end_points)
 
         return end_points
 
@@ -205,12 +209,12 @@ class VoteNetModule(LightningModule):
                              sampling=self.opt.sampling)
         self.vote_loss         = VoteLoss()
         self.objectness_loss   = ObjectnessLoss()
-        self.size_loss         = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
-        self.head_loss         = HeadLoss(self.opt.num_head_bin)
+        #self.size_loss         = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
+        #self.head_loss         = HeadLoss(self.opt.num_head_bin)
         self.center_loss       = CenterLoss()
-        self.sem_loss          = SematicLoss()
-        self.prop_loss         = nn.BCELoss()
-        self.segmentation_loss = nn.CrossEntropyLoss(reduction='none') 
+        #self.sem_loss          = SematicLoss()
+        #self.prop_loss         = nn.BCELoss()
+        #self.segmentation_loss = nn.CrossEntropyLoss(reduction='none') 
 
     def forward(self, batch, batch_idx, split):
         B = batch["point_clouds"].shape[0]
