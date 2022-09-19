@@ -399,7 +399,7 @@ class SegmentationLoss(torch.nn.Module):
     def forward(self, segmentation_pred, segmentation_labels):
         # segmentation_pred.shape (B, N, K)
         # segmentation_labels.shape (B, N)
-        segmentation_loss = self.criterion(segmentation_pred.transpose(2,1), segmentation_labels)
+        segmentation_loss = self.criterion(segmentation_pred, segmentation_labels)
         return torch.mean(segmentation_loss)
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
