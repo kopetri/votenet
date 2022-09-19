@@ -396,17 +396,27 @@ class SegmentationLoss(torch.nn.Module):
         super().__init__()
         self.criterion = nn.CrossEntropyLoss(reduction='none')
 
-    def forward(self, segmentation_pred, segmentation_labels, noise_mask=False):
+    def forward(self, segmentation_pred, segmentation_labels):
         # segmentation_pred.shape (B, N, K)
         # segmentation_labels.shape (B, N)
         segmentation_loss = self.criterion(segmentation_pred.transpose(2,1), segmentation_labels)
-        if noise_mask is None:
-            segmentation_loss[noise_mask]
         return torch.mean(segmentation_loss)
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
+    def __compute_distance_A_B(self, A, B):
+        N = A.shape[1]
+        M = B.shape[1]
+        X = torch.repeat_interleave(A, M, dim=1)
+        Y = B.repeat(1, N, 1)
+
+        diff = X - Y
+        diff = torch.pow(diff, 2)
+        diff = torch.sum(diff, dim=-1)
+        dist = torch.sqrt(diff)
+        dist = dist.reshape(-1, A.shape[1], B.shape[1])
+        return dist
     mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1])) # (B, K)
-    dist, _, _, _ = nn_distance(pred_centers, gt_centers)
+    dist = __compute_distance_A_B(pred_centers, gt_centers)
     
     y = torch.argmin(dist, dim=1) # (B, 2)
     x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]).to(y) 
@@ -417,7 +427,7 @@ def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_
     xyz = point_features[:,:, 0:3] # (B, N, 3)
     proposal_mask = (~proposal_mask.bool()).float() # invert
 
-    dist, _, _, _ = nn_distance(pred_centers, xyz) # (B, K, N)
+    dist = __compute_distance_A_B(pred_centers, xyz) # (B, K, N)
     proposal_mask = proposal_mask.unsqueeze(-1).repeat(1,1,dist.shape[-1]) * 100 # (B, K, N)
     dist += proposal_mask # make invalid proposal distances very high!
     point_to_cluster_labels = torch.argmin(dist, dim=1) # (B, N)

@@ -15,7 +15,7 @@ from models.backbone_module import Pointnet2Backbone
 from models.pointnet2 import Pointnet2Backbone as Pointnet2Features
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
-from models.loss_helper import VoteLoss, HeadLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss, compute_object_label_mask, compute_segmentation_labels
+from models.loss_helper import VoteLoss, SegmentationLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss, compute_object_label_mask, compute_segmentation_labels
 from utils.nn_distance import nn_distance
 from utils.scatterplot import draw_scatterplot
 
@@ -185,6 +185,7 @@ class VoteNetModule(LightningModule):
         #self.size_loss         = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
         #self.head_loss         = HeadLoss(self.opt.num_head_bin)
         self.center_loss       = CenterLoss()
+        self.segmentation_loss = SegmentationLoss()
         #self.sem_loss          = SematicLoss()
         #self.prop_loss         = nn.BCELoss()
         #self.segmentation_loss = nn.CrossEntropyLoss(reduction='none') 
@@ -208,7 +209,8 @@ class VoteNetModule(LightningModule):
         #segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels']))
         #box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         #loss = self.compute_votenet_loss(vl, ol, box_loss, seml)
-        loss = vl + 0.5 * ol + cl
+        sl       = self.segmentation_loss(end_points['segmentation_probabilities'], segmentation_label)
+        loss = (vl + ol + cl + sl) / 4.0
         loss *= 10
 
         self.log_value("loss",             loss,     split=split, batch_size=B)
@@ -222,7 +224,7 @@ class VoteNetModule(LightningModule):
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
         #self.log_value("box_loss",         box_loss, split=split, batch_size=B)
         #self.log_value("prop_loss",        probl,    split=split, batch_size=B)
-        #self.log_value("seg_loss",         segl,     split=split, batch_size=B)
+        self.log_value("seg_loss",         sl,     split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, end_points)
         return loss
