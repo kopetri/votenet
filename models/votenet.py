@@ -63,7 +63,7 @@ class VoteNet(nn.Module):
 
 
         # Point to cluster segmentation
-        self.seg_net = SegmentationModule(n_point_feat=self.input_feature_dim, C=2+3)
+        self.seg_net = SegmentationModule(n_point_feat=self.input_feature_dim, C=2+3, K=self.num_proposal)
 
     def compute_point_to_cluster_labels(self, end_points):
         point_features = end_points['point_clouds']# (B, N, P)
