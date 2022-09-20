@@ -14,6 +14,7 @@ FAR_THRESHOLD = 0.6
 NEAR_THRESHOLD = 0.3
 GT_VOTE_FACTOR = 3 # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2,0.8] # put larger weights on positive objectness
+NOISE_CLS_WEIGHTS = [0.9,0.1] # put larger weights on negative samples
 
 def compute_vote_loss(end_points):
     """ Compute vote loss: Match predicted votes to GT votes.
@@ -394,7 +395,7 @@ class ObjectnessLoss(torch.nn.Module):
 class SegmentationLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS).cuda(), reduction='none')
+        self.criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS).cuda(), reduction='none')
 
     def forward(self, segmentation_pred, segmentation_labels):
         # segmentation_pred.shape (B, N, K)
