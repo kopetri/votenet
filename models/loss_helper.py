@@ -392,6 +392,21 @@ class ObjectnessLoss(torch.nn.Module):
         objectness_loss = torch.sum(objectness_loss * objectness_mask)/(torch.sum(objectness_mask)+1e-6)
         return objectness_loss
 
+class AdjacentLoss(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.criterion = nn.BCELoss(reduction='sum')
+
+    def forward(self, pred, gt, objectmask):
+        # objectness_mask (B, K)
+        K = objectmask.shape[1]
+        objectmask_hor = objectmask.unsqueeze(1).repeat(1,K,1).bool()
+        objectmask_ver = objectmask.unsqueeze(2).repeat(1,1,K).bool()
+        objectmask = ~torch.logical_or(objectmask_hor, objectmask_ver)
+        objectmask = objectmask.float()
+        gt = gt * objectmask
+        return self.criterion(pred, gt)
+
 class SegmentationLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -402,6 +417,41 @@ class SegmentationLoss(torch.nn.Module):
         # segmentation_labels.shape (B, N)
         segmentation_loss = self.criterion(segmentation_pred, segmentation_labels)
         return torch.mean(segmentation_loss)
+
+def compute_adjacents_labels(pred_centers, gt_centers):
+    def make_adjacent_matrix(vec):
+        # vec.shape (K)
+        K = len(vec)
+        matrix = torch.zeros((K, K))
+        for i in torch.unique(vec):
+            combs = torch.combinations(torch.where(vec==i)[0], with_replacement=True).permute(1,0)
+            combs_inverse = torch.flip(combs, [0])
+
+            matrix[combs.tolist()] = 1
+            matrix[combs_inverse.tolist()] = 1
+        return matrix
+    def __compute_distance_A_B(A, B):
+        N = A.shape[1]
+        M = B.shape[1]
+        X = A.unsqueeze(2).repeat(1, 1, M, 1)
+        Y = B.unsqueeze(1).repeat(1, N, 1, 1)
+
+        diff = X - Y
+        diff = torch.pow(diff, 2)
+        diff = torch.sum(diff, dim=-1)
+        dist = torch.sqrt(diff)
+        
+        return dist
+    # pred_centers.shape (B, K, 3)
+    # gt_centers.shape   (B, P, 3)
+    B = pred_centers.shape[0]
+    K = pred_centers.shape[1]
+    labels = torch.zeros((B, K, K), dtype=int)
+    dist = __compute_distance_A_B(pred_centers, gt_centers) # (B, K, P)
+    clusters = torch.argmin(dist, dim=2) # (B, K)
+    for bidx, cluster in enumerate(clusters):
+        labels[bidx] = make_adjacent_matrix(cluster)
+    return labels
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
     """

@@ -15,7 +15,7 @@ from models.backbone_module import Pointnet2Backbone
 from models.pointnet2 import Pointnet2Backbone as Pointnet2Features
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
-from models.loss_helper import VoteLoss, SegmentationLoss, SizeLoss, ObjectnessLoss, CenterLoss, SematicLoss, compute_object_label_mask, compute_segmentation_labels
+from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
 from utils.nn_distance import nn_distance
 from utils.scatterplot import draw_scatterplot
 
@@ -38,7 +38,7 @@ class VoteNet(nn.Module):
             Number of votes generated from each seed point.
     """
 
-    def __init__(self, input_feature_dim=0, num_proposal=128, vote_factor=1, sampling='vote_fps'):
+    def __init__(self, input_feature_dim=0, num_proposal=128, E=64, vote_factor=1, sampling='vote_fps'):
         super().__init__()
 
         self.input_feature_dim = input_feature_dim
@@ -59,54 +59,11 @@ class VoteNet(nn.Module):
         self.vgen = VotingModule(self.vote_factor, 256)
 
         # Vote aggregation and detection
-        self.pnet = ProposalModule(num_proposal, sampling)
+        self.pnet = ProposalModule(num_proposal, sampling, E=E)
 
 
         # Point to cluster segmentation
-        self.seg_net = SegmentationModule(n_point_feat=self.input_feature_dim, C=2+3, K=self.num_proposal)
-
-    def compute_point_to_cluster_labels(self, end_points):
-        point_features = end_points['point_clouds']# (B, N, P)
-        xyz = point_features[:,:, 0:3] # (B, N, 3)
-        pred_centers = end_points['center'] # (B, K, 3)
-        proposal_mask = end_points['proposal_mask'] # (B, K)
-        proposal_mask = (~proposal_mask.bool()).float() # invert
-
-        dist = self.compute_distance_A_B(pred_centers, xyz) # (B, K, N)
-        proposal_mask = proposal_mask.unsqueeze(-1).repeat(1,1,dist.shape[-1]) * 100 # (B, K, N)
-        dist += proposal_mask # make invalid proposal distances very high!
-        end_points['point_to_cluster_labels'] = torch.argmin(dist, dim=1) # (B, N)
-        return end_points
-
-    def compute_distance_A_B(self, A, B):
-        N = A.shape[1]
-        M = B.shape[1]
-        X = torch.repeat_interleave(A, M, dim=1)
-        Y = B.repeat(1, N, 1)
-
-        diff = X - Y
-        diff = torch.pow(diff, 2)
-        diff = torch.sum(diff, dim=-1)
-        dist = torch.sqrt(diff)
-        dist = dist.reshape(-1, A.shape[1], B.shape[1])
-        return dist
-
-    def compute_proposal_mask(self, end_points):
-        pred_centers = end_points['center']
-        gt_centers = end_points['center_label']
-        # pred_centers.shape (B, K, 3)
-        # gt_centers.shape (B, N, 3)
-        mask = torch.zeros((pred_centers.shape[0], pred_centers.shape[1])) # (B, K)
-
-        dist = self.compute_distance_A_B(pred_centers, gt_centers)
-        
-        y = torch.argmin(dist, dim=1) # (B, 2)
-        x = torch.arange(y.shape[0]).unsqueeze(1).repeat(1,y.shape[1]).to(y) 
-        indices = torch.stack([x,y], dim=2).view(y.shape[1] * y.shape[0], 2).permute(1,0).tolist()
-        mask[indices] = 1.0
-        end_points['proposal_mask'] = mask.to(pred_centers)
-        return end_points
-
+        self.seg_net = SegmentationModule(n_point_feat=self.input_feature_dim, C=2+3+E, K=self.num_proposal)
 
     def forward(self, inputs):
         """ Forward pass of the network
@@ -147,9 +104,12 @@ class VoteNet(nn.Module):
 
         end_points = self.pnet(xyz, features, end_points)
 
+        A = self.compute_adjacent_matrix(end_points)
+
         end_points = self.seg_net(end_points)
 
         return end_points
+        
 
 class SegmentationModule(torch.nn.Module):
     def __init__(self, n_point_feat, C, K,) -> None:
@@ -188,6 +148,7 @@ class VoteNetModule(LightningModule):
         #self.head_loss         = HeadLoss(self.opt.num_head_bin)
         self.center_loss       = CenterLoss()
         self.segmentation_loss = SegmentationLoss()
+        self.adjacent_loss     = AdjacentLoss()
         #self.sem_loss          = SematicLoss()
         #self.prop_loss         = nn.BCELoss()
         #self.segmentation_loss = nn.CrossEntropyLoss(reduction='none') 
@@ -200,24 +161,27 @@ class VoteNetModule(LightningModule):
         #_, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], end_points['center_label'][:,:,0:3])
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
         segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
+        adjacent_labels = compute_adjacents_labels(end_points['center'], end_points['center_label'])
         
         vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
         ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
         #scl, srl = self.size_loss(end_points['size_scores'], end_points['size_class_label'], end_points['size_residual_label'], end_points['size_residuals_normalized'], object_assignment, objectness_label)
         #hcl, hrl = self.head_loss(end_points['heading_class_label'], end_points['heading_scores'], end_points['heading_residual_label'], end_points['heading_residuals_normalized'], object_assignment, objectness_label)
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
+        al       = self.adjacent_loss(end_points['adjacent_matrix'], adjacent_labels, objectness_mask)
         #seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
         #probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
         #segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels']))
         #box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
         #loss = self.compute_votenet_loss(vl, ol, box_loss, seml)
         sl       = self.segmentation_loss(end_points['segmentation_pred'], segmentation_label)
-        loss = (vl + ol + cl + sl) / 4.0
+        loss = (vl + ol + cl + sl) / 4.0 + al
         loss *= 10
 
         self.log_value("loss",             loss,     split=split, batch_size=B)
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
+        self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
         #self.log_value("heading_cls_loss", hcl,      split=split, batch_size=B)
         #self.log_value("heading_reg_loss", hrl,      split=split, batch_size=B)
         #self.log_value("size_cls_loss",    scl,      split=split, batch_size=B)

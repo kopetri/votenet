@@ -6,10 +6,20 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 from pointnet2.pointnet2_modules import PointnetSAModuleVotes
 from pointnet2 import pointnet2_utils
+
+def compute_adjacent_matrix(proposal_feat):
+    # proposal_feat.shape (B, K, E)
+    A = proposal_feat.unsqueeze(2) # (B, K, 1, E)
+    B = proposal_feat.unsqueeze(1) # (B, 1, K, E)
+    # dot product
+    m = torch.sum(A * B, dim=3) # (B, K, K)
+    # normalize to -1 and 1
+    m = m.div(torch.linalg.matrix_norm(m).unsqueeze(-1).unsqueeze(-1))
+    # normalize to 0 and 1
+    return (m + 1.0) / 2.0
 
 def decode_scores(net, end_points):
     net_transposed = net.transpose(2,1) # (batch_size, 1024, ..)
@@ -19,11 +29,13 @@ def decode_scores(net, end_points):
     base_xyz = end_points['aggregated_vote_xyz'] # (batch_size, num_proposal, 3)
     center = base_xyz + net_transposed[:,:,2:5] # (batch_size, num_proposal, 3)
     end_points['center'] = center
+    proposal_features = net_transposed[:,:, 5:] # (batch_size, num_proposal, E)
+    end_points['adjacent_matrix'] = compute_adjacent_matrix(proposal_features)
     return end_points
 
 
 class ProposalModule(nn.Module):
-    def __init__(self, num_proposal, sampling, seed_feat_dim=256):
+    def __init__(self, num_proposal, sampling, E=64, seed_feat_dim=256):
         super().__init__() 
 
         self.num_proposal = num_proposal
@@ -44,7 +56,7 @@ class ProposalModule(nn.Module):
         # Objectness scores (2), center residual (3)
         self.conv1 = torch.nn.Conv1d(128,128,1)
         self.conv2 = torch.nn.Conv1d(128,128,1)
-        self.conv3 = torch.nn.Conv1d(128,2+3,1)
+        self.conv3 = torch.nn.Conv1d(128,2+3+E,1)
         self.bn1 = torch.nn.BatchNorm1d(128)
         self.bn2 = torch.nn.BatchNorm1d(128)
 
@@ -80,7 +92,7 @@ class ProposalModule(nn.Module):
         # --------- PROPOSAL GENERATION ---------
         net = F.relu(self.bn1(self.conv1(features))) 
         net = F.relu(self.bn2(self.conv2(net))) 
-        net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
+        net = self.conv3(net) # (batch_size, 2+3+F, num_proposal)
         end_points['proposals'] = net
 
         end_points = decode_scores(net, end_points)
