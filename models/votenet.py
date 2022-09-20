@@ -104,8 +104,6 @@ class VoteNet(nn.Module):
 
         end_points = self.pnet(xyz, features, end_points)
 
-        A = self.compute_adjacent_matrix(end_points)
-
         end_points = self.seg_net(end_points)
 
         return end_points
