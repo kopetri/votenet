@@ -451,7 +451,7 @@ def compute_adjacents_labels(pred_centers, gt_centers):
     clusters = torch.argmin(dist, dim=2) # (B, K)
     for bidx, cluster in enumerate(clusters):
         labels[bidx] = make_adjacent_matrix(cluster)
-    return labels
+    return labels.to(pred_centers)
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
     """
