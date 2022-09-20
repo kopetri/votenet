@@ -395,7 +395,7 @@ class ObjectnessLoss(torch.nn.Module):
 class AdjacentLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.BCELoss(reduction='sum')
+        self.criterion = nn.BCELoss(reduction='mean')
 
     def forward(self, pred, gt, objectmask):
         # objectness_mask (B, K)
