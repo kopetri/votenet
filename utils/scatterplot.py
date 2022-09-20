@@ -4,8 +4,8 @@ import numpy as np
 
 def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
-    colors_sem = {0:'tab:purple', 1:'tab:cyan'}
-    colors_noise = {0:'tab:black', 1:'tab:cyan'}
+    colors_sem = {0:'tab:purple', 1:'tab:blue'}
+    colors_noise = {0:'black', 1:'cyan'}
     new_cmap = rand_cmap(256, type='bright', first_color_black=True, last_color_black=False, verbose=False)
     fig, ax = plt.subplots()
     plt.axis('off')
@@ -16,8 +16,8 @@ def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None,
     if not instance is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=2, color=[colors[i] for i in instance])
     #if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=seg_pred, cmap=new_cmap, vmin=0, vmax=100)
     #if not seg_gt is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=seg_gt, cmap=new_cmap, vmin=0, vmax=100)
-    if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, color=[colors_noise[i] for i in seg_pred])
-    if not seg_gt is None:   plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, color=[colors_noise[i] for i in seg_gt])
+    if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=[colors_noise[i] for i in seg_pred])
+    if not seg_gt is None:   plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=[colors_noise[i] for i in seg_gt])
     
     if not bbox is None:
         for b in bbox:
