@@ -152,24 +152,26 @@ class VoteNet(nn.Module):
         return end_points
 
 class SegmentationModule(torch.nn.Module):
-    def __init__(self, n_point_feat, C, size=256) -> None:
+    def __init__(self, n_point_feat, C, K,) -> None:
         super().__init__()
         self.mlp = nn.Sequential(
-            torch.nn.Linear(3 + n_point_feat + C, size),
-            torch.nn.Linear(size, 1)
+            torch.nn.Linear((3 + n_point_feat + C) * K, 2)
         )
 
     def forward(self, end_points):
         proposals = end_points["proposals"]
         point_feat = end_points["point_clouds"]
+        B = point_feat.shape[0]
+        N = point_feat.shape[1]
         # point_feat.shape (B, N, P)
         # proposals.shape (B, C, K)
         proposals = proposals.permute(0,2,1) # (B, K, C)
         point_feat = point_feat.unsqueeze(2).repeat(1, 1, proposals.shape[1], 1)
         proposals = proposals.unsqueeze(1).repeat(1, point_feat.shape[1], 1, 1)
         feat = torch.cat([point_feat, proposals], dim=-1) # (B, N, K, P+C)
-        feat = self.mlp(feat).squeeze(-1) # (B, N, K)
-        segmentation_probabilities = feat.permute(0,2,1)
+        feat = feat.view(B, N, -1) # (B, N, (3+P+C) * K)
+        feat = self.mlp(feat).squeeze(-1) # (B, N, 2)
+        segmentation_probabilities = feat.permute(0,2,1) # (B, 2, N)
         end_points['segmentation_pred'] = segmentation_probabilities
         return end_points
 
@@ -249,7 +251,7 @@ class VoteNetModule(LightningModule):
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         pred_centers = end_points['center'].squeeze(0).cpu().numpy()
         dim = batch['bbox_dim'].squeeze(0).cpu().numpy() # (2, 3)
-        segmentation_pred = end_points['segmentation_pred'].squeeze(0).cpu().softmax(dim=0) # (K, N)
+        segmentation_pred = end_points['segmentation_pred'].squeeze(0).cpu().softmax(dim=0) # (2, N)
         segmentation_pred = torch.argmax(segmentation_pred, dim=0).numpy() # (N)
         segmentation_label = segmentation_label.squeeze(0).cpu().numpy() # (N)
         objectness_score = end_points['objectness_scores'].squeeze(0).cpu().softmax(dim=1).numpy() # (K, 2)

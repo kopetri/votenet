@@ -394,7 +394,7 @@ class ObjectnessLoss(torch.nn.Module):
 class SegmentationLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.CrossEntropyLoss(reduction='none')
+        self.criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS).cuda(), reduction='none')
 
     def forward(self, segmentation_pred, segmentation_labels):
         # segmentation_pred.shape (B, N, K)
@@ -403,6 +403,7 @@ class SegmentationLoss(torch.nn.Module):
         return torch.mean(segmentation_loss)
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
+    """
     def __compute_distance_A_B(A, B):
         N = A.shape[1]
         M = B.shape[1]
@@ -434,6 +435,8 @@ def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_
     point_to_cluster_labels += 1 # move labels => class idx 0 is noise
     point_to_cluster_labels[noise_label==0] = 0
     return point_to_cluster_labels
+    """
+    return noise_label
 
 def compute_object_label_mask(aggregated_vote_xyz, center_label):
     gt_center = center_label[:,:,0:3]
