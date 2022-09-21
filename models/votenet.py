@@ -16,7 +16,6 @@ from models.pointnet2 import Pointnet2Backbone as Pointnet2Features
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
-from utils.nn_distance import nn_distance
 from utils.scatterplot import draw_scatterplot
 
 class VoteNet(nn.Module):
@@ -142,36 +141,23 @@ class VoteNetModule(LightningModule):
                              sampling=self.opt.sampling)
         self.vote_loss         = VoteLoss()
         self.objectness_loss   = ObjectnessLoss()
-        #self.size_loss         = SizeLoss(self.opt.num_size_cluster, self.opt.mean_size_arr)
-        #self.head_loss         = HeadLoss(self.opt.num_head_bin)
         self.center_loss       = CenterLoss()
         self.segmentation_loss = SegmentationLoss()
         self.adjacent_loss     = AdjacentLoss()
-        #self.sem_loss          = SematicLoss()
-        #self.prop_loss         = nn.BCELoss()
-        #self.segmentation_loss = nn.CrossEntropyLoss(reduction='none') 
 
     def forward(self, batch, batch_idx, split):
         B = batch["point_clouds"].shape[0]
 
         end_points = self.model(batch)
 
-        #_, object_assignment, _, _ = nn_distance(batch["aggregated_vote_xyz"], end_points['center_label'][:,:,0:3])
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
         segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
         adjacent_labels = compute_adjacents_labels(end_points['center'], end_points['center_label'])
         
         vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
         ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
-        #scl, srl = self.size_loss(end_points['size_scores'], end_points['size_class_label'], end_points['size_residual_label'], end_points['size_residuals_normalized'], object_assignment, objectness_label)
-        #hcl, hrl = self.head_loss(end_points['heading_class_label'], end_points['heading_scores'], end_points['heading_residual_label'], end_points['heading_residuals_normalized'], object_assignment, objectness_label)
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
         al       = self.adjacent_loss(end_points['adjacent_matrix'], adjacent_labels, objectness_mask)
-        #seml     = self.sem_loss(end_points['sem_cls_scores'], end_points['sem_cls_label'], object_assignment, objectness_label)
-        #probl    = self.prop_loss(end_points['proposal_pred'], end_points['proposal_mask'])
-        #segl     = torch.mean(self.segmentation_loss(end_points['point_to_cluster_probabilities'], end_points['point_to_cluster_labels']))
-        #box_loss = self.compute_box_loss(cl, hcl, hrl, scl, srl)
-        #loss = self.compute_votenet_loss(vl, ol, box_loss, seml)
         sl       = self.segmentation_loss(end_points['segmentation_pred'], segmentation_label)
         loss = (vl + ol + cl + sl) / 4.0 + al
         loss *= 10
@@ -180,14 +166,7 @@ class VoteNetModule(LightningModule):
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
         self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
-        #self.log_value("heading_cls_loss", hcl,      split=split, batch_size=B)
-        #self.log_value("heading_reg_loss", hrl,      split=split, batch_size=B)
-        #self.log_value("size_cls_loss",    scl,      split=split, batch_size=B)
-        #self.log_value("size_reg_loss",    srl,      split=split, batch_size=B)
-        #self.log_value("sem_cls_loss",     seml,     split=split, batch_size=B)
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
-        #self.log_value("box_loss",         box_loss, split=split, batch_size=B)
-        #self.log_value("prop_loss",        probl,    split=split, batch_size=B)
         self.log_value("seg_loss",         sl,     split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=True)
