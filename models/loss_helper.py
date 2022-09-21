@@ -10,10 +10,10 @@ import torch.nn as nn
 import numpy as np
 from utils.nn_distance import nn_distance, huber_loss
 
-FAR_THRESHOLD = 0.6
-NEAR_THRESHOLD = 0.3
+FAR_THRESHOLD = 0.4
+NEAR_THRESHOLD = 0.1
 GT_VOTE_FACTOR = 3 # number of GT votes per point
-OBJECTNESS_CLS_WEIGHTS = [0.2,0.8] # put larger weights on positive objectness
+OBJECTNESS_CLS_WEIGHTS = [0.1,0.9] # put larger weights on positive objectness
 NOISE_CLS_WEIGHTS = [0.9,0.1] # put larger weights on negative samples
 
 def compute_vote_loss(end_points):
