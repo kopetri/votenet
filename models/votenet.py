@@ -201,7 +201,7 @@ class VoteNetModule(LightningModule):
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred)
-        img_gt   = draw_scatterplot(points, bbox=bbox, seg_gt=segmentation_label, objectness_label=objectness_label)
+        img_gt   = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_gt=segmentation_label, objectness_label=objectness_label)
         if log: self.log_image(key='valid_pred', images=[img_pred])
         if log: self.log_image(key='valid_gt', images=[img_gt])
         return img_gt, img_pred, points, gt_centers, pred_centers
