@@ -402,14 +402,7 @@ class AdjacentLoss(torch.nn.Module):
         super().__init__()
         self.criterion = nn.BCELoss(reduction='mean')
 
-    def forward(self, pred, gt, objectmask):
-        # objectness_mask (B, K)
-        K = objectmask.shape[1]
-        objectmask_hor = objectmask.unsqueeze(1).repeat(1,K,1).bool()
-        objectmask_ver = objectmask.unsqueeze(2).repeat(1,1,K).bool()
-        objectmask = ~torch.logical_or(objectmask_hor, objectmask_ver)
-        objectmask = objectmask.float()
-        gt = gt * objectmask
+    def forward(self, pred, gt):
         return self.criterion(pred, gt)
 
 class SegmentationLoss(torch.nn.Module):
@@ -423,7 +416,7 @@ class SegmentationLoss(torch.nn.Module):
         segmentation_loss = self.criterion(segmentation_pred, segmentation_labels)
         return torch.mean(segmentation_loss)
 
-def compute_adjacents_labels(pred_centers, gt_centers):
+def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
     def make_adjacent_matrix(vec):
         # vec.shape (K)
         K = len(vec)
@@ -456,6 +449,14 @@ def compute_adjacents_labels(pred_centers, gt_centers):
     clusters = torch.argmin(dist, dim=2) # (B, K)
     for bidx, cluster in enumerate(clusters):
         labels[bidx] = make_adjacent_matrix(cluster)
+    
+    # objectness_mask (B, K)
+    K = objectmask.shape[1]
+    objectmask_hor = objectmask.unsqueeze(1).repeat(1,K,1).bool()
+    objectmask_ver = objectmask.unsqueeze(2).repeat(1,1,K).bool()
+    objectmask = ~torch.logical_or(objectmask_hor, objectmask_ver)
+    objectmask = objectmask.float()
+    labels = labels * objectmask
     return labels.to(pred_centers)
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):

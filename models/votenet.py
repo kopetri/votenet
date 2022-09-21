@@ -17,6 +17,7 @@ from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
 from utils.scatterplot import draw_scatterplot
+from utils.metric_util import AdjacentAccuracy
 
 class VoteNet(nn.Module):
     r"""
@@ -145,6 +146,8 @@ class VoteNetModule(LightningModule):
         self.segmentation_loss = SegmentationLoss()
         self.adjacent_loss     = AdjacentLoss()
 
+        self.adjacent_acc      = AdjacentAccuracy()
+
     def forward(self, batch, batch_idx, split):
         B = batch["point_clouds"].shape[0]
 
@@ -152,22 +155,25 @@ class VoteNetModule(LightningModule):
 
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
         segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
-        adjacent_labels = compute_adjacents_labels(end_points['center'], end_points['center_label'])
+        adjacent_labels = compute_adjacents_labels(end_points['center'], end_points['center_label'], objectness_mask)
         
         vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
         ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
-        al       = self.adjacent_loss(end_points['adjacent_matrix'], adjacent_labels, objectness_mask)
+        al       = self.adjacent_loss(end_points['adjacent_matrix'], adjacent_labels)
         sl       = self.segmentation_loss(end_points['segmentation_pred'], segmentation_label)
         loss = (vl + ol + cl + sl) / 4.0 + al
         loss *= 10
+
+        aa = self.adjacent_acc(end_points['adjacent_matrix'], adjacent_labels)
 
         self.log_value("loss",             loss,     split=split, batch_size=B)
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
         self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
-        self.log_value("seg_loss",         sl,     split=split, batch_size=B)
+        self.log_value("seg_loss",         sl,       split=split, batch_size=B)
+        self.log_value("adjacent_acc",     aa,       split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=True)
         return loss
@@ -197,7 +203,7 @@ class VoteNetModule(LightningModule):
         segmentation_label = segmentation_label.squeeze(0).cpu().numpy() # (N)
         objectness_score = end_points['objectness_scores'].squeeze(0).cpu().softmax(dim=1).numpy() # (K, 2)
         objectness_score = np.argmax(objectness_score, axis=1) # (K)
-        objectness_label = objectness_label.squeeze(0).cpu().numpy()
+        objectness_label = objectness_label.squeeze(0).int().cpu().numpy()
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred)

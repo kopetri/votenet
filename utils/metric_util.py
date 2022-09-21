@@ -118,6 +118,16 @@ def calc_iou(box_a, box_b):
     union = vol_a + vol_b - intersection
     return 1.0*intersection / union
 
+class AdjacentAccuracy(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, pred, gt):
+        pred = pred.round().int()
+        correct = torch.sum(torch.triu(pred==gt, diagonal=1).int())
+        total   = torch.sum(torch.triu(torch.ones_like(gt), diagonal=1))
+        return correct / total
+
 
 if __name__ == '__main__':
     print('running some tests')
