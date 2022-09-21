@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 
-def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None):
+def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None, objectness_label=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:blue'}
     colors_noise = {0:'black', 1:'cyan'}
@@ -27,8 +27,10 @@ def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None,
 
     if not pred is None:
         for i,c in enumerate(pred):
-            if objectness_score is None or objectness_score[i]:
+            if objectness_score and objectness_score[i]:
                 plt.plot(c[0], c[1], 'ro')
+            elif objectness_label and objectness_label[i]:
+                plt.plot(c[0], c[1], 'r^')
             else:
                 plt.plot(c[0], c[1], 'rx')
     

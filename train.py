@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate_decay', default=0.99999, type=float, help='Add learning rate decay.')
     parser.add_argument('--weight_decay', default=0.99999, type=float, help='Add learning rate decay.')
     parser.add_argument('--early_stop_patience', default=0, type=int, help='Stop training after n epochs with ne val_loss improvement.')
-    parser.add_argument('--name', default="pointcloud", type=str, help='Name of output folder.')
+    parser.add_argument('--name', default=None, type=str, help='Name of output folder.')
     parser.add_argument('--use_augmentation', action='store_true', help="Whether to use data augmentation")
     parser.add_argument('--n_points', default=500, type=int, help="Whether to use data augmentation")
     parser.add_argument('--num_proposal', default=10, type=int, help="Whether to use data augmentation")
