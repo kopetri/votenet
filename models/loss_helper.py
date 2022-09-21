@@ -10,6 +10,11 @@ import torch.nn as nn
 import numpy as np
 from utils.nn_distance import nn_distance, huber_loss
 
+# euclid dist1
+# max  10.80859088897705
+# min  0.004594038240611553
+# mean 0.6839807866623421
+# std  0.39462738209756815
 FAR_THRESHOLD = 0.4
 NEAR_THRESHOLD = 0.1
 GT_VOTE_FACTOR = 3 # number of GT votes per point
