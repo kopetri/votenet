@@ -392,7 +392,7 @@ class ObjectnessLoss(torch.nn.Module):
 
     def forward(self, objectness_scores, objectness_label, objectness_mask):
         # Compute objectness loss
-        criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS).cuda(), reduction='none')
+        criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS), reduction='none')
         objectness_loss = criterion(objectness_scores.transpose(2,1), objectness_label)
         objectness_loss = torch.sum(objectness_loss * objectness_mask)/(torch.sum(objectness_mask)+1e-6)
         return objectness_loss
@@ -400,7 +400,7 @@ class ObjectnessLoss(torch.nn.Module):
 class AdjacentLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.BCELoss(torch.Tensor(ADJACENT_WEIGHT).cuda(), reduction='mean')
+        self.criterion = nn.BCELoss(torch.Tensor(ADJACENT_WEIGHT), reduction='mean')
 
     def forward(self, pred, gt):
         return self.criterion(pred, gt)
@@ -408,7 +408,7 @@ class AdjacentLoss(torch.nn.Module):
 class SegmentationLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS).cuda(), reduction='none')
+        self.criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS), reduction='none')
 
     def forward(self, segmentation_pred, segmentation_labels):
         # segmentation_pred.shape (B, N, K)
