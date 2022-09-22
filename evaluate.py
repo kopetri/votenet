@@ -9,7 +9,6 @@ from pytorch_utils.scripts import Trainer
 
 if __name__ == '__main__':
     trainer = Trainer("Evaluate Cluster Separation")
-    trainer.add_argument('--worker', default=8, type=int, help='Number of workers for data loader')
     trainer.add_argument('--dataset_path', required=True, type=str, help='Path to data set.')
     trainer.add_argument('--ckpt', required=True, type=str, help='Path to checkpoint file.')
     trainer.add_argument('--small', action='store_true', help="Fast evaluation with only 10 datapoints.")
