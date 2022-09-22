@@ -188,7 +188,9 @@ class VoteNetModule(LightningModule):
 
     def predict_step(self, batch, batch_idx):
         end_points = self.model(batch)
-        img_gt, img_pred, points, gt_centers, pred_centers = self.visualize_prediction(batch, end_points, log=False)
+        objectness_label, _ = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
+        segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
+        img_gt, img_pred, points, gt_centers, pred_centers = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=False)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]
         return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
