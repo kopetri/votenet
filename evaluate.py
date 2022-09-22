@@ -1,19 +1,25 @@
 from pathlib import Path
+from argparse import ArgumentParser
 from models.votenet import VoteNetModule
+import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from scatterplot.cluster_separation_dataset import ClusterSeparationDataset
 import cv2
 import numpy as np
-from pytorch_utils.scripts import Trainer
 from pytorch_utils import parse_ckpt
 
 if __name__ == '__main__':
-    trainer = Trainer("Evaluate Cluster Separation")
-    trainer.add_argument('--dataset_path', required=True, type=str, help='Path to data set.')
-    trainer.add_argument('--ckpt', required=True, type=str, help='Path to checkpoint file.')
-    trainer.add_argument('--small', action='store_true', help="Fast evaluation with only 10 datapoints.")
+    parser = ArgumentParser('Evaluate scatterplot model')
+    parser.add_argument('--worker', default=8, type=int, help='Number of workers for data loader')
+    parser.add_argument('--dataset_path', required=True, type=str, help='Path to data set.')
+    parser.add_argument('--ckpt', required=True, type=str, help='Path to checkpoint file.')
+    parser.add_argument('--small', action='store_true', help="Fast evaluation with only 10 datapoints.")
+    args = parser.parse_args()
 
-    args = trainer.setup()
+    trainer = pl.Trainer(
+        accelerator='gpu',
+        devices=1,
+    )
 
     if args.small:
         split = "test_small"
@@ -47,3 +53,4 @@ if __name__ == '__main__':
         np.save(path_points, points)
         np.save(path_gt, gt_centers)
         np.save(path_pred, pred_centers)
+
