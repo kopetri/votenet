@@ -2,3 +2,7 @@ __pycache__/
 pointnet2/build/
 *.egg-info
 checkpoints/
+venv/
+wandb/
+train.sh
+lightning_logs/
