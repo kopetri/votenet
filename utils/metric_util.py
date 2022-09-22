@@ -123,9 +123,11 @@ class AdjacentAccuracy(torch.nn.Module):
         super().__init__()
 
     def forward(self, pred, gt):
-        pred = pred.round().int()
-        correct = torch.sum(torch.triu(pred==gt, diagonal=1).int())
-        total   = torch.sum(torch.triu(torch.ones_like(gt), diagonal=1))
+        mask = gt==1
+        pred = torch.argmax(pred, dim=1)
+        correct = torch.sum(torch.triu(pred==gt, diagonal=1).int()[mask])
+        total   = torch.sum(torch.triu(torch.ones_like(gt), diagonal=1)[mask])
+        if total == 0: return 0
         return correct / total
 
 

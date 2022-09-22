@@ -172,10 +172,10 @@ class VoteNetModule(LightningModule):
         self.log_value("loss",             loss,     split=split, batch_size=B)
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
+        self.log_value("adjacent_acc",     aa,       split=split, batch_size=B)
         self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
         self.log_value("seg_loss",         sl,       split=split, batch_size=B)
-        self.log_value("adjacent_acc",     aa,       split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, end_points['adjacent_matrix'], adjacent_labels, log=True)
         return loss
@@ -209,7 +209,7 @@ class VoteNetModule(LightningModule):
         objectness_score = end_points['objectness_scores'].squeeze(0).cpu().softmax(dim=1).numpy() # (K, 2)
         objectness_score = np.argmax(objectness_score, axis=1) # (K)
         objectness_label = objectness_label.squeeze(0).int().cpu().numpy()
-        adjacent_matrix_pred = adjacent_matrix_pred.squeeze(0).cpu().numpy()
+        adjacent_matrix_pred = np.argmax(adjacent_matrix_pred.squeeze(0).cpu().numpy(), axis=0)  # (2, K, K)
         adjacent_labels = adjacent_labels.squeeze(0).cpu().numpy()
 
         bbox = np.concatenate([gt_centers, dim], axis=1)

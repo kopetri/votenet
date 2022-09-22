@@ -392,7 +392,7 @@ class ObjectnessLoss(torch.nn.Module):
 
     def forward(self, objectness_scores, objectness_label, objectness_mask):
         # Compute objectness loss
-        criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS), reduction='none')
+        criterion = nn.CrossEntropyLoss(torch.Tensor(OBJECTNESS_CLS_WEIGHTS).to(objectness_scores), reduction='none')
         objectness_loss = criterion(objectness_scores.transpose(2,1), objectness_label)
         objectness_loss = torch.sum(objectness_loss * objectness_mask)/(torch.sum(objectness_mask)+1e-6)
         return objectness_loss
@@ -400,20 +400,20 @@ class ObjectnessLoss(torch.nn.Module):
 class AdjacentLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.BCELoss(torch.Tensor(ADJACENT_WEIGHT), reduction='mean')
 
     def forward(self, pred, gt):
-        return self.criterion(pred, gt)
+        criterion = nn.CrossEntropyLoss(torch.Tensor(ADJACENT_WEIGHT).to(pred), reduction='mean')
+        return criterion(pred, gt)
 
 class SegmentationLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS), reduction='none')
 
     def forward(self, segmentation_pred, segmentation_labels):
+        criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS).to(segmentation_pred), reduction='none')
         # segmentation_pred.shape (B, N, K)
         # segmentation_labels.shape (B, N)
-        segmentation_loss = self.criterion(segmentation_pred, segmentation_labels)
+        segmentation_loss = criterion(segmentation_pred, segmentation_labels)
         return torch.mean(segmentation_loss)
 
 def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
@@ -457,7 +457,7 @@ def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
     objectmask = ~torch.logical_or(objectmask_hor, objectmask_ver)
     objectmask = objectmask.float()
     labels = labels * objectmask
-    return labels.to(pred_centers)
+    return labels.to(pred_centers).long()
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
     """

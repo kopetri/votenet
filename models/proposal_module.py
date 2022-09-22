@@ -19,7 +19,10 @@ def compute_adjacent_matrix(proposal_feat):
     # normalize to -1 and 1
     m = m.div(torch.linalg.matrix_norm(m).unsqueeze(-1).unsqueeze(-1))
     # normalize to 0 and 1
-    return (m + 1.0) / 2.0
+    m = (m + 1.0) / 2.0 # (B, K, K)
+    m = m.unsqueeze(-1).repeat(1,1,1,2) # (B, K, K, 2)
+    m[..., -1] = 1.0 - m[..., -1] 
+    return m.permute(0, 3, 1, 2) # (B, 2, K, K)
 
 def decode_scores(net, end_points):
     net_transposed = net.transpose(2,1) # (batch_size, 1024, ..)
