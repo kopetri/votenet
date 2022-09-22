@@ -32,16 +32,17 @@ if __name__ == '__main__':
         num_workers=args.worker
     )
     
+    results = trainer.validate(model=model, dataloaders=test_loader)
     results = trainer.predict(model=model, dataloaders=test_loader)
     for result in results:
-        img_gt, img_pred, gt_adj, pred_adj, pid, points, gt_centers, pred_centers = result[0], result[1], result[2], result[3], result[4], result[5]
+        [img_gt, img_pred, gt_adj, pred_adj, pid, points, gt_centers, pred_centers] = result
         path_img_gt     = Path(ckpt).parent/"results"/"gt_{}.jpg".format(pid)
         path_img_pred   = Path(ckpt).parent/"results"/"pred_{}.jpg".format(pid)
         path_points     = Path(ckpt).parent/"results"/"points_{}.npy".format(pid)
         path_gt         = Path(ckpt).parent/"results"/"gt_{}.npy".format(pid)
         path_pred       = Path(ckpt).parent/"results"/"pred_{}.npy".format(pid)
-        path_adj_gt     = Path(ckpt).parent/"results"/"gt_adj_{}.npy".format(pid)
-        path_adj_pred   = Path(ckpt).parent/"results"/"pred_adj_{}.npy".format(pid)
+        path_adj_gt     = Path(ckpt).parent/"results"/"gt_adj_{}.jpg".format(pid)
+        path_adj_pred   = Path(ckpt).parent/"results"/"pred_adj_{}.jpg".format(pid)
         path_gt.parent.mkdir(parents=True, exist_ok=True)
         
         cv2.imwrite(path_img_gt.as_posix(), img_gt)

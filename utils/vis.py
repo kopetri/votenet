@@ -1,12 +1,14 @@
-import matplotlib.pyplot as plt
+import cv2
 import numpy as np
 
-def draw_adjacent_matrix(matrix):
-    fig, ax = plt.subplots()
-    plt.axis('off')
-    plt.matshow(matrix, cmap='Blues')
-    fig.tight_layout(pad=0)
-    fig.canvas.draw()
-    image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plt.close()
+def draw_adjacent_matrix(matrix, width=256, height=256):
+    matrix = np.round(matrix, 0)
+    matrix = np.repeat(matrix, height, axis=0)
+    matrix = np.repeat(matrix, width, axis=1)
+
+    matrix *= 255
+    matrix = np.clip(matrix, 0,255)
+    matrix = matrix.astype(np.uint8)
+
+    matrix = cv2.applyColorMap(matrix, cv2.COLORMAP_BONE)
+    return cv2.resize(matrix, (width, height))[...,::-1]

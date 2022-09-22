@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from argparse import Namespace
-from turtle import forward
 import torch
 import torch.nn as nn
 import numpy as np
@@ -20,6 +19,7 @@ NEAR_THRESHOLD = 0.1
 GT_VOTE_FACTOR = 3 # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.1,0.9] # put larger weights on positive objectness
 NOISE_CLS_WEIGHTS = [0.9,0.1] # put larger weights on negative samples
+ADJACENT_WEIGHT = [0.1,0.9] # put larger weights on positive samples
 
 def compute_vote_loss(end_points):
     """ Compute vote loss: Match predicted votes to GT votes.
@@ -400,7 +400,7 @@ class ObjectnessLoss(torch.nn.Module):
 class AdjacentLoss(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.criterion = nn.BCELoss(reduction='mean')
+        self.criterion = nn.BCELoss(torch.Tensor(ADJACENT_WEIGHT).cuda(), reduction='mean')
 
     def forward(self, pred, gt):
         return self.criterion(pred, gt)
