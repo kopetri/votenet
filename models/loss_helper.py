@@ -444,7 +444,7 @@ def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
     # gt_centers.shape   (B, P, 3)
     B = pred_centers.shape[0]
     K = pred_centers.shape[1]
-    labels = torch.zeros((B, K, K), dtype=int)
+    labels = torch.zeros((B, K, K), dtype=int).to(objectmask)
     dist = __compute_distance_A_B(pred_centers, gt_centers) # (B, K, P)
     clusters = torch.argmin(dist, dim=2) # (B, K)
     for bidx, cluster in enumerate(clusters):
