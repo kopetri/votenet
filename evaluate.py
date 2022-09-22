@@ -13,8 +13,7 @@ if __name__ == '__main__':
     trainer.add_argument('--ckpt', required=True, type=str, help='Path to checkpoint file.')
     trainer.add_argument('--small', action='store_true', help="Fast evaluation with only 10 datapoints.")
 
-    trainer.setup()
-    args = trainer.parse_args()
+    args = trainer.setup()
 
     if args.small:
         split = "test_small"
