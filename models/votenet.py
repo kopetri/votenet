@@ -17,6 +17,7 @@ from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
 from utils.scatterplot import draw_scatterplot
+from utils.vis import draw_adjacent_matrix
 from utils.metric_util import AdjacentAccuracy
 
 class VoteNet(nn.Module):
@@ -148,7 +149,7 @@ class VoteNetModule(LightningModule):
 
         self.adjacent_acc      = AdjacentAccuracy()
 
-    def forward(self, batch, batch_idx, split):
+    def forward(self, batch, batch_idx, split, return_labels=False):
         B = batch["point_clouds"].shape[0]
 
         end_points = self.model(batch)
@@ -156,6 +157,7 @@ class VoteNetModule(LightningModule):
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
         segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
         adjacent_labels = compute_adjacents_labels(end_points['center'], end_points['center_label'], objectness_mask)
+        if return_labels: return end_points, objectness_label, objectness_mask, segmentation_label, adjacent_labels
         
         vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
         ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
@@ -187,15 +189,16 @@ class VoteNetModule(LightningModule):
         return center_loss + 0.1 * heading_cls_loss + heading_reg_loss + 0.1 * size_cls_loss + size_reg_loss
 
     def predict_step(self, batch, batch_idx):
-        end_points = self.model(batch)
-        objectness_label, _ = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
-        segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
-        img_gt, img_pred, points, gt_centers, pred_centers = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=False)
+        end_points, objectness_label, objectness_mask, segmentation_label, adjacent_labels = self(batch, batch_idx, None, True)
+        adjacent_matrix_pred = end_points['adjacent_matrix']
+        img_gt, img_pred, points, gt_centers, pred_centers, pred_adj, gt_adj = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=False)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]
-        return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
+        pred_adj = pred_adj[...,::-1]
+        gt_adj = gt_adj[...,::-1]
+        return img_gt, img_pred, gt_adj, pred_adj, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
 
-    def visualize_prediction(self, batch, end_points, segmentation_label, objectness_label, log=True):
+    def visualize_prediction(self, batch, end_points, segmentation_label, objectness_label, adjacent_matrix_pred, adjacent_labels, log=True):
         points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         pred_centers = end_points['center'].squeeze(0).cpu().numpy()
@@ -206,13 +209,17 @@ class VoteNetModule(LightningModule):
         objectness_score = end_points['objectness_scores'].squeeze(0).cpu().softmax(dim=1).numpy() # (K, 2)
         objectness_score = np.argmax(objectness_score, axis=1) # (K)
         objectness_label = objectness_label.squeeze(0).int().cpu().numpy()
+        adjacent_matrix_pred = adjacent_matrix_pred.squeeze(0).cpu().numpy()
+        adjacent_labels = adjacent_labels.squeeze(0).cpu().numpy()
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred)
         img_gt   = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_gt=segmentation_label, objectness_label=objectness_label)
-        if log: self.log_image(key='valid_pred', images=[img_pred])
-        if log: self.log_image(key='valid_gt', images=[img_gt])
-        return img_gt, img_pred, points, gt_centers, pred_centers
+        adj_pred = draw_adjacent_matrix(adjacent_matrix_pred)
+        adj_gt = draw_adjacent_matrix(adjacent_labels)
+        if log: self.log_image(key='valid_pred', images=[img_pred, adj_pred])
+        if log: self.log_image(key='valid_gt', images=[img_gt, adj_gt])
+        return img_gt, img_pred, points, gt_centers, pred_centers, adj_pred, adj_gt
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
