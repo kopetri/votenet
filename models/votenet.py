@@ -177,7 +177,7 @@ class VoteNetModule(LightningModule):
         self.log_value("seg_loss",         sl,       split=split, batch_size=B)
         self.log_value("adjacent_acc",     aa,       split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
-            self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=True)
+            self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, end_points['adjacent_matrix'], adjacent_labels, log=True)
         return loss
 
     def compute_votenet_loss(self, vote_loss, objectness_loss, box_loss, sem_cls_loss):
@@ -189,9 +189,9 @@ class VoteNetModule(LightningModule):
         return center_loss + 0.1 * heading_cls_loss + heading_reg_loss + 0.1 * size_cls_loss + size_reg_loss
 
     def predict_step(self, batch, batch_idx):
-        end_points, objectness_label, objectness_mask, segmentation_label, adjacent_labels = self(batch, batch_idx, None, True)
+        end_points, objectness_label, _, segmentation_label, adjacent_labels = self(batch, batch_idx, None, True)
         adjacent_matrix_pred = end_points['adjacent_matrix']
-        img_gt, img_pred, points, gt_centers, pred_centers, pred_adj, gt_adj = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, log=False)
+        img_gt, img_pred, points, gt_centers, pred_centers, pred_adj, gt_adj = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, adjacent_matrix_pred, adjacent_labels, log=False)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]
         pred_adj = pred_adj[...,::-1]
