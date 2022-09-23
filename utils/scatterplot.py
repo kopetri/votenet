@@ -1,12 +1,20 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
+import torch
+import cv2
+
+def get_n_colors(N):
+    x = np.linspace(0.0, 1.0, N)
+    colors = plt.colormaps['prism'](x)[:, :3]
+    colors[0, :] = 0.0
+    return colors
+
 
 def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None, objectness_label=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:blue'}
-    colors_noise = {0:'black', 1:'cyan'}
-    new_cmap = rand_cmap(256, type='bright', first_color_black=True, last_color_black=False, verbose=False)
+    colors = get_n_colors(20)
     fig, ax = plt.subplots()
     plt.axis('off')
         
@@ -16,8 +24,8 @@ def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None,
     if not instance is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=2, color=[colors[i] for i in instance])
     #if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=seg_pred, cmap=new_cmap, vmin=0, vmax=100)
     #if not seg_gt is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=seg_gt, cmap=new_cmap, vmin=0, vmax=100)
-    if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=[colors_noise[i] for i in seg_pred])
-    if not seg_gt is None:   plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=[colors_noise[i] for i in seg_gt])
+    if not seg_pred is None: plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=[colors[i] for i in seg_pred])
+    if not seg_gt is None:   plt.scatter(x=points[:,0], y=points[:,1], marker='o', s=25, c=[colors[i] for i in seg_gt])
     
     if not bbox is None:
         for b in bbox:
@@ -114,6 +122,81 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
                                    boundaries=bounds, format='%1i', orientation=u'horizontal')
 
     return random_colormap
+
+def extract_clusters(matrix):
+    K = matrix.shape[0]
+    matrix = torch.triu(matrix, diagonal=1)
+    matrix.fill_diagonal_(1)
+    clusters = []
+    finished = []
+    for i in range(K):
+      if i in finished:continue
+      current_nodes = []
+      row = matrix[i]
+      for j in range(K):   
+        if row[j] > 0.5:
+          current_nodes.append([j, row[j].item()])
+          finished.append(j)
+      clusters.append(current_nodes)
+
+    return clusters
+
+def make_adjacent_matrix(vec):
+    K = len(vec)
+    matrix = torch.zeros((K, K))
+    for i in torch.unique(vec):
+      combs = torch.combinations(torch.where(vec==i)[0], with_replacement=True).permute(1,0)
+      combs_inverse = torch.flip(combs, [0])
+
+      matrix[combs.tolist()] = 1
+      matrix[combs_inverse.tolist()] = 1
+    return matrix
+
+def get_ambiguous_item(i, clusters):
+    result = [(idx, score) for c in clusters for idx,score in c if idx == i]
+    if len(result) > 1:
+      return np.max([score for _, score in result])
+    else:
+      return -1
+
+def invalidate(score, idx, clusters):
+    return [[[i,-1] if (idx==i and s<score) else [i,s] for (i,s) in c] for c in clusters]
+    
+
+def clean_clusters(clusters, K):
+    for i in range(K):
+      score = get_ambiguous_item(i, clusters)
+      if score > 0:
+        clusters = invalidate(score, i, clusters)
+
+    clusters = [[i for (i,s) in c if not s==-1] for c in clusters]
+    return clusters
+
+def clusters2map(clusters, K):
+    cluster_map = torch.zeros(K)
+    for idx, c in enumerate(clusters):
+      for i in c:
+        cluster_map[i] = idx
+
+    return cluster_map
+
+def adjacent_matrix_to_cluster(matrix):
+    if len(matrix.shape) == 2:
+        K = matrix.shape[1]
+        clusters = extract_clusters(matrix)
+        clusters = clean_clusters(clusters=clusters, K=K)
+        return clusters2map(clusters=clusters, K=K).to(matrix)
+    elif len(matrix.shape) == 4: # (B, 2, K, K)
+        K = matrix.shape[2]
+        matrix = torch.argmax(matrix, dim=1)
+        cluster_map = torch.zeros((matrix.shape[0], K))
+        for bidx, m in enumerate(matrix):
+            clusters = extract_clusters(m)
+            clusters = clean_clusters(clusters=clusters, K=K)
+            cluster_map[bidx] = clusters2map(clusters=clusters, K=K)
+        return cluster_map.to(matrix)
+    else:
+        raise ValueError(matrix.shape)
 
 
 if __name__ == '__main__':

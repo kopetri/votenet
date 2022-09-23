@@ -16,9 +16,9 @@ from models.pointnet2 import Pointnet2Backbone as Pointnet2Features
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
-from utils.scatterplot import draw_scatterplot
+from utils.scatterplot import draw_scatterplot, adjacent_matrix_to_cluster
 from utils.vis import draw_adjacent_matrix
-from utils.metric_util import AdjacentAccuracy
+from utils.metric_util import AdjacentAccuracy, ClusterAccuracy
 
 class VoteNet(nn.Module):
     r"""
@@ -61,7 +61,6 @@ class VoteNet(nn.Module):
 
         # Vote aggregation and detection
         self.pnet = ProposalModule(num_proposal, sampling, E=E)
-
 
         # Point to cluster segmentation
         self.seg_net = SegmentationModule(n_point_feat=self.input_feature_dim, C=2+3+E, K=self.num_proposal)
@@ -114,7 +113,7 @@ class SegmentationModule(torch.nn.Module):
     def __init__(self, n_point_feat, C, K,) -> None:
         super().__init__()
         self.mlp = nn.Sequential(
-            torch.nn.Linear((3 + n_point_feat + C) * K, 2)
+            torch.nn.Linear((3 + n_point_feat + C) * K, K+1)
         )
 
     def forward(self, end_points):
@@ -129,9 +128,9 @@ class SegmentationModule(torch.nn.Module):
         proposals = proposals.unsqueeze(1).repeat(1, point_feat.shape[1], 1, 1)
         feat = torch.cat([point_feat, proposals], dim=-1) # (B, N, K, P+C)
         feat = feat.view(B, N, -1) # (B, N, (3+P+C) * K)
-        feat = self.mlp(feat).squeeze(-1) # (B, N, 2)
-        segmentation_probabilities = feat.permute(0,2,1) # (B, 2, N)
-        end_points['segmentation_pred'] = segmentation_probabilities
+        feat = self.mlp(feat).squeeze(-1) # (B, N, K+1)
+        segmentation_probabilities = feat.permute(0,2,1) # (B, K+1, N)
+        end_points['segmentation_pred'] = segmentation_probabilities  # (B, K+1, N)
         return end_points
 
 class VoteNetModule(LightningModule):
@@ -144,10 +143,11 @@ class VoteNetModule(LightningModule):
         self.vote_loss         = VoteLoss()
         self.objectness_loss   = ObjectnessLoss()
         self.center_loss       = CenterLoss()
-        self.segmentation_loss = SegmentationLoss()
+        self.segmentation_loss = SegmentationLoss(self.opt.num_proposal)
         self.adjacent_loss     = AdjacentLoss()
 
         self.adjacent_acc      = AdjacentAccuracy()
+        self.cluster_acc       = ClusterAccuracy()
 
     def forward(self, batch, batch_idx, split, return_labels=False):
         B = batch["point_clouds"].shape[0]
@@ -156,28 +156,29 @@ class VoteNetModule(LightningModule):
 
         objectness_label, objectness_mask = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'])
         segmentation_label = compute_segmentation_labels(end_points['center'], end_points['center_label'], batch["point_clouds"], batch['noise_label'])
-        adjacent_labels = compute_adjacents_labels(end_points['center'], end_points['center_label'], objectness_mask)
-        if return_labels: return end_points, objectness_label, objectness_mask, segmentation_label, adjacent_labels
+        adjacent_labels, proposal2cluster = compute_adjacents_labels(end_points['center'], end_points['center_label'], objectness_mask)
+        if return_labels: return end_points, objectness_label, objectness_mask, segmentation_label, adjacent_labels, proposal2cluster
         
         vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
         ol       = self.objectness_loss(end_points['objectness_scores'], objectness_label, objectness_mask)
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
         al       = self.adjacent_loss(end_points['adjacent_matrix'], adjacent_labels)
         sl       = self.segmentation_loss(end_points['segmentation_pred'], segmentation_label)
-        loss = (vl + ol + cl + sl) / 4.0 + al
-        loss *= 10
+        loss = 1/11 * vl + 2/11 * ol + 1/11 * cl + 4/11 * sl + 3/11 * al
 
         aa = self.adjacent_acc(end_points['adjacent_matrix'], adjacent_labels)
+        ca = self.cluster_acc(adjacent_matrix_to_cluster(end_points['adjacent_matrix']), proposal2cluster)
 
         self.log_value("loss",             loss,     split=split, batch_size=B)
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
         self.log_value("adjacent_acc",     aa,       split=split, batch_size=B)
+        self.log_value("cluster_acc",      ca,       split=split, batch_size=B)
         self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
         self.log_value("seg_loss",         sl,       split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
-            self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, end_points['adjacent_matrix'], adjacent_labels, log=True)
+            self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, end_points['adjacent_matrix'], adjacent_labels, proposal2cluster, log=True)
         return loss
 
     def compute_votenet_loss(self, vote_loss, objectness_loss, box_loss, sem_cls_loss):
@@ -189,16 +190,16 @@ class VoteNetModule(LightningModule):
         return center_loss + 0.1 * heading_cls_loss + heading_reg_loss + 0.1 * size_cls_loss + size_reg_loss
 
     def predict_step(self, batch, batch_idx):
-        end_points, objectness_label, _, segmentation_label, adjacent_labels = self(batch, batch_idx, None, True)
+        end_points, objectness_label, _, segmentation_label, adjacent_labels, proposal2cluster = self(batch, batch_idx, None, True)
         adjacent_matrix_pred = end_points['adjacent_matrix']
-        img_gt, img_pred, points, gt_centers, pred_centers, pred_adj, gt_adj = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, adjacent_matrix_pred, adjacent_labels, log=False)
+        img_gt, img_pred, points, gt_centers, pred_centers, pred_adj, gt_adj = self.visualize_prediction(batch, end_points, segmentation_label, objectness_label, adjacent_matrix_pred, adjacent_labels, proposal2cluster, log=False)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]
         pred_adj = pred_adj[...,::-1]
         gt_adj = gt_adj[...,::-1]
         return img_gt, img_pred, gt_adj, pred_adj, batch["plot_id"].squeeze(0).cpu().item(), points, gt_centers, pred_centers
 
-    def visualize_prediction(self, batch, end_points, segmentation_label, objectness_label, adjacent_matrix_pred, adjacent_labels, log=True):
+    def visualize_prediction(self, batch, end_points, segmentation_label, objectness_label, adjacent_matrix_pred, adjacent_labels, proposal2cluster, log=True):
         points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         pred_centers = end_points['center'].squeeze(0).cpu().numpy()
@@ -211,6 +212,9 @@ class VoteNetModule(LightningModule):
         objectness_label = objectness_label.squeeze(0).int().cpu().numpy()
         adjacent_matrix_pred = np.argmax(adjacent_matrix_pred.squeeze(0).cpu().numpy(), axis=0)  # (2, K, K)
         adjacent_labels = adjacent_labels.squeeze(0).cpu().numpy()
+        proposal2cluster = np.pad(proposal2cluster.squeeze(0).cpu().numpy()+1, [1, 0]) # (K)
+        segmentation_pred = proposal2cluster[segmentation_pred]
+        segmentation_label = proposal2cluster[segmentation_label]
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred)

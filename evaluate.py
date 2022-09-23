@@ -13,7 +13,7 @@ if __name__ == '__main__':
     trainer.add_argument('--ckpt', required=True, type=str, help='Path to checkpoint file.')
     trainer.add_argument('--small', action='store_true', help="Fast evaluation with only 10 datapoints.")
     
-    args = trainer.setup(mode="eval")
+    args = trainer.setup(train=False)
 
     if args.small:
         split = "test_small"
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     ckpt = parse_ckpt(args.ckpt)
     model = VoteNetModule.load_from_checkpoint(ckpt)
 
-    test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split=split, num_points=model.opt.n_points)
+    test_dataset   = ClusterSeparationDataset(path=args.dataset_path, split=split, num_points=model.opt.n_points, static_choice=True)
 
     test_loader = DataLoader(
         test_dataset,

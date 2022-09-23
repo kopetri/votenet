@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from utils.nn_distance import nn_distance, huber_loss
+from utils.scatterplot import make_adjacent_matrix, adjacent_matrix_to_cluster
 
 # euclid dist1
 # max  10.80859088897705
@@ -406,28 +407,18 @@ class AdjacentLoss(torch.nn.Module):
         return criterion(pred, gt)
 
 class SegmentationLoss(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, num_proposals) -> None:
         super().__init__()
+        self.num_proposals = num_proposals
+        self.weights = torch.ones(num_proposals+1)
+        self.weights[1:] = 1.0 / num_proposals
+        self.weights = self.weights.softmax(dim=0)
 
     def forward(self, segmentation_pred, segmentation_labels):
-        criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS).to(segmentation_pred), reduction='none')
-        # segmentation_pred.shape (B, N, K)
-        # segmentation_labels.shape (B, N)
-        segmentation_loss = criterion(segmentation_pred, segmentation_labels)
-        return torch.mean(segmentation_loss)
+        criterion = nn.CrossEntropyLoss(self.weights.to(segmentation_pred), reduction='mean')
+        return criterion(segmentation_pred, segmentation_labels)
 
 def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
-    def make_adjacent_matrix(vec):
-        # vec.shape (K)
-        K = len(vec)
-        matrix = torch.zeros((K, K))
-        for i in torch.unique(vec):
-            combs = torch.combinations(torch.where(vec==i)[0], with_replacement=True).permute(1,0)
-            combs_inverse = torch.flip(combs, [0])
-
-            matrix[combs.tolist()] = 1
-            matrix[combs_inverse.tolist()] = 1
-        return matrix
     def __compute_distance_A_B(A, B):
         N = A.shape[1]
         M = B.shape[1]
@@ -447,8 +438,10 @@ def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
     labels = torch.zeros((B, K, K), dtype=int).to(objectmask)
     dist = __compute_distance_A_B(pred_centers, gt_centers) # (B, K, P)
     clusters = torch.argmin(dist, dim=2) # (B, K)
+    proposal2cluster = torch.zeros_like(clusters)
     for bidx, cluster in enumerate(clusters):
         labels[bidx] = make_adjacent_matrix(cluster)
+        proposal2cluster[bidx] = adjacent_matrix_to_cluster(labels[bidx])
     
     # objectness_mask (B, K)
     K = objectmask.shape[1]
@@ -457,10 +450,9 @@ def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
     objectmask = ~torch.logical_or(objectmask_hor, objectmask_ver)
     objectmask = objectmask.float()
     labels = labels * objectmask
-    return labels.to(pred_centers).long()
+    return labels.to(pred_centers).long(), proposal2cluster
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
-    """
     def __compute_distance_A_B(A, B):
         N = A.shape[1]
         M = B.shape[1]
@@ -492,8 +484,6 @@ def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_
     point_to_cluster_labels += 1 # move labels => class idx 0 is noise
     point_to_cluster_labels[noise_label==0] = 0
     return point_to_cluster_labels
-    """
-    return noise_label
 
 def compute_object_label_mask(aggregated_vote_xyz, center_label):
     gt_center = center_label[:,:,0:3]

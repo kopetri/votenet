@@ -29,7 +29,7 @@ class ClusterSeparatonDatasetConfig(object):
 
 class ClusterSeparationDataset(Dataset):
        
-    def __init__(self, path, split='train', num_points=5000, use_color=False, use_height=False, augment=False, keep_choices=False):
+    def __init__(self, path, split='train', num_points=5000, use_color=False, use_height=False, augment=False, static_choice=False):
         self.use_small = "small" in split
         self.split = split.replace("_small", "")
         self.path = Path(path)
@@ -42,8 +42,7 @@ class ClusterSeparationDataset(Dataset):
         if self.use_small: print("DEBUG using small version!")
         print("Found {} scatterplots for split {}".format(len(self.ids), split))
         print("Mean size arr: ", self.mean_size_arr)
-        self.choices = -np.ones((self.__len__(), num_points))
-        self.keep_choices = keep_choices
+        self.static_choice = static_choice
 
     def load_split(self):
         with open(self.path/"{}.txt".format(self.split), "r") as splitfile:
@@ -102,13 +101,12 @@ class ClusterSeparationDataset(Dataset):
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         
-        if self.keep_choices:
-            if self.choices[idx][0] < 0:
-                point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
-                self.choices[idx] = choices
-            else:
-                choices = self.choices[idx]
-                point_cloud = point_cloud[choices]
+        if self.static_choice:
+            N = len(point_cloud)
+            step = N // self.num_points
+            choices = np.arange(0,N,step)
+            assert len(choices) == self.num_points, len(choices)
+            point_cloud = point_cloud[choices]
         else:
             point_cloud, choices = random_sampling(point_cloud, self.num_points, return_choices=True)
         

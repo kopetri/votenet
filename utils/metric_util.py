@@ -9,6 +9,7 @@ Author: Or Litany and Charles R. Qi
 """
 
 
+from turtle import forward
 import torch
 import numpy as np
 
@@ -128,6 +129,19 @@ class AdjacentAccuracy(torch.nn.Module):
         correct = torch.sum(torch.triu(pred==gt, diagonal=1).int()[mask])
         total   = torch.sum(torch.triu(torch.ones_like(gt), diagonal=1)[mask])
         if total == 0: return 0.0
+        return correct / total
+
+class ClusterAccuracy(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, pred, gt):
+        #pred.shape (B, K)
+        num_classes = torch.max(gt, dim=1)[0]
+        num_classes = num_classes.unsqueeze(1).repeat(1, gt.shape[1])
+        pred = torch.clip(pred, max=num_classes) # clip predicted num_classes to gt num_classes
+        correct = torch.sum((pred == gt).int())
+        total = torch.sum(torch.ones_like(gt))
         return correct / total
 
 

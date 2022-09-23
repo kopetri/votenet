@@ -20,8 +20,8 @@ if __name__ == '__main__':
 
     args = trainer.setup()
 
-    train_dataset = ClusterSeparationDataset(path=args.dataset_path, split="train", num_points=args.n_points, keep_choices=False)
-    val_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="valid", num_points=args.n_points, keep_choices=True)
+    train_dataset = ClusterSeparationDataset(path=args.dataset_path, split="train", num_points=args.n_points, static_choice=False)
+    val_dataset   = ClusterSeparationDataset(path=args.dataset_path, split="valid", num_points=args.n_points, static_choice=True)
 
     train_loader = DataLoader(
         train_dataset,
