@@ -9,9 +9,9 @@ Author: Or Litany and Charles R. Qi
 """
 
 
-from turtle import forward
 import torch
 import numpy as np
+from torchmetrics import JaccardIndex
 
 # Mesh IO
 import trimesh
@@ -143,6 +143,22 @@ class ClusterAccuracy(torch.nn.Module):
         correct = torch.sum((pred == gt).int())
         total = torch.sum(torch.ones_like(gt))
         return correct / total
+
+class IoU(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, pred, gt, proposal2cluster):
+        B = proposal2cluster.shape[0]
+        proposal2cluster = torch.cat([torch.zeros(B,1).to(proposal2cluster), proposal2cluster+1], dim=1).long() # pad with 0 in the front
+        jaccard_index = JaccardIndex(num_classes=(torch.max(proposal2cluster)+1).int(), average=None).to(pred)
+        pred = pred.softmax(dim=1)
+        pred = torch.argmax(pred, dim=1)
+        proposal2cluster = proposal2cluster.permute(1,0) # (B, K) -> (K, B)
+        pred = proposal2cluster[pred][...,0]
+        gt = proposal2cluster[gt][...,0]
+        iou = jaccard_index(pred, gt)
+        return iou
 
 
 if __name__ == '__main__':

@@ -7,6 +7,7 @@
 
 Author: Charles R. Qi and Or Litany
 """
+import enum
 import torch
 import torch.nn as nn
 import numpy as np
@@ -18,7 +19,7 @@ from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
 from utils.scatterplot import draw_scatterplot, adjacent_matrix_to_cluster
 from utils.vis import draw_adjacent_matrix
-from utils.metric_util import AdjacentAccuracy, ClusterAccuracy
+from utils.metric_util import AdjacentAccuracy, ClusterAccuracy,IoU
 
 class VoteNet(nn.Module):
     r"""
@@ -148,6 +149,7 @@ class VoteNetModule(LightningModule):
 
         self.adjacent_acc      = AdjacentAccuracy()
         self.cluster_acc       = ClusterAccuracy()
+        self.iou               = IoU()
 
     def forward(self, batch, batch_idx, split, return_labels=False):
         B = batch["point_clouds"].shape[0]
@@ -168,12 +170,15 @@ class VoteNetModule(LightningModule):
 
         aa = self.adjacent_acc(end_points['adjacent_matrix'], adjacent_labels)
         ca = self.cluster_acc(adjacent_matrix_to_cluster(end_points['adjacent_matrix']), proposal2cluster)
+        iou = self.iou(end_points['segmentation_pred'], segmentation_label, proposal2cluster)
 
         self.log_value("loss",             loss,     split=split, batch_size=B)
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
         self.log_value("adjacent_acc",     aa,       split=split, batch_size=B)
         self.log_value("cluster_acc",      ca,       split=split, batch_size=B)
+        for i, acc in enumerate(iou):
+            self.log_value("iou_{}".format("noise" if i==0 else "cluster{}".format(i)),      acc,       split=split, batch_size=B)
         self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
         self.log_value("seg_loss",         sl,       split=split, batch_size=B)
