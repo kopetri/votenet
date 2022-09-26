@@ -219,16 +219,16 @@ class VoteNetModule(LightningModule):
         adjacent_matrix_pred = np.argmax(adjacent_matrix_pred.squeeze(0).cpu().numpy(), axis=0)  # (2, K, K)
         adjacent_labels = adjacent_labels.squeeze(0).cpu().numpy()
         proposal2cluster = np.pad(proposal2cluster.squeeze(0).cpu().numpy()+1, [1, 0]) # (K)
-        segmentation_pred = proposal2cluster[segmentation_pred]
-        segmentation_label = proposal2cluster[segmentation_label]
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
-        img_pred = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred)
-        img_gt   = draw_scatterplot(points, pred=pred_centers, bbox=bbox, seg_gt=segmentation_label, objectness_label=objectness_label)
-        adj_pred = draw_adjacent_matrix(adjacent_matrix_pred)
-        adj_gt = draw_adjacent_matrix(adjacent_labels)
-        if log: self.log_image(key='valid_pred', images=[img_pred, adj_pred])
-        if log: self.log_image(key='valid_gt', images=[img_gt, adj_gt])
+        img_pred_raw = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred)
+        img_gt_raw   = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_gt=segmentation_label)
+        img_pred     = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=proposal2cluster[segmentation_pred])
+        img_gt       = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_label=objectness_label, seg_gt=  proposal2cluster[segmentation_label])
+        adj_pred     = draw_adjacent_matrix(adjacent_matrix_pred)
+        adj_gt       = draw_adjacent_matrix(adjacent_labels)
+        if log: self.log_image(key='valid_pred', images=[img_pred_raw, img_pred, adj_pred])
+        if log: self.log_image(key='valid_gt', images=[img_gt_raw,img_gt, adj_gt])
         return img_gt, img_pred, points, gt_centers, pred_centers, adj_pred, adj_gt
 
     def configure_optimizers(self):

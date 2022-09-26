@@ -36,11 +36,11 @@ def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None,
     if not pred is None:
         for i,c in enumerate(pred):
             if objectness_score is not None and objectness_score[i]:
-                plt.plot(c[0], c[1], 'ro')
+                plt.plot(c[0], c[1], 'bo')
             elif objectness_label is not None and objectness_label[i]:
-                plt.plot(c[0], c[1], 'r^')
+                plt.plot(c[0], c[1], 'b^')
             else:
-                plt.plot(c[0], c[1], 'rx')
+                plt.plot(c[0], c[1], 'bx')
     
     
     fig.tight_layout(pad=0)
