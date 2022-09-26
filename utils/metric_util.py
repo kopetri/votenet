@@ -124,6 +124,8 @@ class AdjacentAccuracy(torch.nn.Module):
         super().__init__()
 
     def forward(self, pred, gt):
+        pred = pred.detach()
+        gt = gt.detach()
         mask = gt==1
         pred = torch.argmax(pred, dim=1)
         correct = torch.sum(torch.triu(pred==gt, diagonal=1).int()[mask])
@@ -136,6 +138,8 @@ class ClusterAccuracy(torch.nn.Module):
         super().__init__()
 
     def forward(self, pred, gt):
+        pred = pred.detach()
+        gt = gt.detach()
         #pred.shape (B, K)
         num_classes = torch.max(gt, dim=1)[0]
         num_classes = num_classes.unsqueeze(1).repeat(1, gt.shape[1])
@@ -149,6 +153,9 @@ class IoU(torch.nn.Module):
         super().__init__()
 
     def forward(self, pred, gt, proposal2cluster):
+        pred = pred.detach()
+        gt = gt.detach()
+        proposal2cluster = proposal2cluster.detach()
         B = proposal2cluster.shape[0]
         proposal2cluster = torch.cat([torch.zeros(B,1).to(proposal2cluster), proposal2cluster+1], dim=1).long() # pad with 0 in the front
         jaccard_index = JaccardIndex(num_classes=(torch.max(proposal2cluster)+1).int(), average=None).to(pred)

@@ -166,7 +166,7 @@ class VoteNetModule(LightningModule):
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], objectness_label)
         al       = self.adjacent_loss(end_points['adjacent_matrix'], adjacent_labels)
         sl       = self.segmentation_loss(end_points['segmentation_pred'], segmentation_label)
-        loss = 1/11 * vl + 2/11 * ol + 1/11 * cl + 4/11 * sl + 3/11 * al
+        loss = (vl + ol + cl + sl) / 4.0 + al
 
         aa = self.adjacent_acc(end_points['adjacent_matrix'], adjacent_labels)
         ca = self.cluster_acc(adjacent_matrix_to_cluster(end_points['adjacent_matrix']), proposal2cluster)
