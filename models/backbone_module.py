@@ -124,8 +124,7 @@ class Pointnet2Backbone(nn.Module):
 
 if __name__=='__main__':
     backbone_net = Pointnet2Backbone(input_feature_dim=3).cuda()
-    print(backbone_net)
     backbone_net.eval()
-    out = backbone_net(torch.rand(16,20000,6).cuda())
+    out = backbone_net(torch.rand(8,20000,6).cuda())
     for key in sorted(out.keys()):
         print(key, '\t', out[key].shape)

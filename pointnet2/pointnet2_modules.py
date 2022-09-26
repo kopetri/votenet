@@ -56,7 +56,6 @@ class _PointnetSAModuleBase(nn.Module):
             new_features = self.groupers[i](
                 xyz, new_xyz, features
             )  # (B, C, npoint, nsample)
-
             new_features = self.mlps[i](
                 new_features
             )  # (B, mlp[-1], npoint, nsample)
@@ -113,7 +112,7 @@ class PointnetSAModuleMSG(_PointnetSAModuleBase):
                 if npoint is not None else pointnet2_utils.GroupAll(use_xyz)
             )
             mlp_spec = mlps[i]
-            if use_xyz:
+            if use_xyz and npoint is not None:
                 mlp_spec[0] += 3
 
             self.mlps.append(pt_utils.SharedMLP(mlp_spec, bn=bn))
@@ -492,22 +491,15 @@ class PointnetLFPModuleMSG(nn.Module):
 
 
 if __name__ == "__main__":
-    from torch.autograd import Variable
     torch.manual_seed(1)
     torch.cuda.manual_seed_all(1)
-    xyz = Variable(torch.randn(2, 9, 3).cuda(), requires_grad=True)
-    xyz_feats = Variable(torch.randn(2, 9, 6).cuda(), requires_grad=True)
+    xyz = torch.randn(2, 9, 3).cuda()
 
     test_module = PointnetSAModuleMSG(
-        npoint=2, radii=[5.0, 10.0], nsamples=[6, 3], mlps=[[9, 3], [9, 6]]
+        npoint=64, radii=[5.0], nsamples=[3], mlps=[[0, 9]]
     )
     test_module.cuda()
-    print(test_module(xyz, xyz_feats))
 
-    for _ in range(1):
-        _, new_features = test_module(xyz, xyz_feats)
-        new_features.backward(
-            torch.cuda.FloatTensor(*new_features.size()).fill_(1)
-        )
-        print(new_features)
-        print(xyz.grad)
+    _, new_features = test_module(xyz)
+    print(new_features.shape)
+    print(xyz.shape)

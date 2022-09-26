@@ -7,13 +7,12 @@
 
 Author: Charles R. Qi and Or Litany
 """
-import enum
 import torch
 import torch.nn as nn
 import numpy as np
 from pytorch_utils.module import LightningModule
 from models.backbone_module import Pointnet2Backbone
-from models.pointnet2 import Pointnet2Backbone as Pointnet2Features
+from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.loss_helper import VoteLoss, SegmentationLoss, AdjacentLoss, ObjectnessLoss, CenterLoss, compute_object_label_mask, compute_segmentation_labels, compute_adjacents_labels
@@ -40,7 +39,7 @@ class VoteNet(nn.Module):
             Number of votes generated from each seed point.
     """
 
-    def __init__(self, input_feature_dim=0, num_proposal=128, E=64, vote_factor=1, sampling='vote_fps'):
+    def __init__(self, input_feature_dim=0, num_points=500, num_proposal=128, E=64, vote_factor=1, sampling='vote_fps'):
         super().__init__()
 
         self.input_feature_dim = input_feature_dim
@@ -50,7 +49,7 @@ class VoteNet(nn.Module):
 
         # Point Features
         if self.input_feature_dim > 0:
-            self.backbone_feat = Pointnet2Features(output_feature_dim=self.input_feature_dim)
+            self.backbone_feat = PointnetSAModuleMSG(npoint=self.input_feature_dim, radii=[0.6], nsamples=[16], mlps=[[0, num_points]])
         else:
             self.backbone_feat = None
 
@@ -86,7 +85,8 @@ class VoteNet(nn.Module):
 
         if self.backbone_feat:
             # generate features
-            end_points = self.backbone_feat(end_points)
+            _, feat = self.backbone_feat(end_points['point_clouds'])
+            end_points['point_clouds'] = torch.cat([end_points['point_clouds'], feat], dim=2) # concat point features to xyz
 
         end_points = self.backbone_net(end_points['point_clouds'], end_points)
                 
@@ -239,3 +239,12 @@ class VoteNetModule(LightningModule):
                 'strict': True,
             }
         return [optimizer], [scheduler]
+
+if __name__ == '__main__':
+    num_points = 5000
+    votenet = VoteNet(input_feature_dim=0, num_points=num_points, num_proposal=128, E=64, vote_factor=1, sampling='vote_fps').cuda()
+
+    inputs = {}
+    inputs['point_clouds'] = torch.randn((8, num_points, 3)).cuda()
+    end_points = votenet(inputs)
+    print(end_points['point_clouds'].shape)
