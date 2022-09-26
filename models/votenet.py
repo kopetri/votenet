@@ -140,7 +140,8 @@ class VoteNetModule(LightningModule):
         self.model = VoteNet(num_proposal=self.opt.num_proposal,
                              input_feature_dim=self.opt.input_feature_dim,
                              vote_factor=self.opt.vote_factor,
-                             sampling=self.opt.sampling)
+                             sampling=self.opt.sampling,
+                             num_points=self.opt.n_points)
         self.vote_loss         = VoteLoss()
         self.objectness_loss   = ObjectnessLoss()
         self.center_loss       = CenterLoss()

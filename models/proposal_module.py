@@ -17,7 +17,8 @@ def compute_adjacent_matrix(proposal_feat):
     # dot product
     m = torch.sum(A * B, dim=3) # (B, K, K)
     # normalize to -1 and 1
-    m = m.div(torch.linalg.matrix_norm(m).unsqueeze(-1).unsqueeze(-1))
+    length = torch.sqrt(torch.sum(m**2, dim=1)).unsqueeze(2)
+    m = m.div(length)
     # normalize to 0 and 1
     m = (m + 1.0) / 2.0 # (B, K, K)
     m = m.unsqueeze(-1).repeat(1,1,1,2) # (B, K, K, 2)
