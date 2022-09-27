@@ -6,7 +6,7 @@ import pointnet2.pointnet2_utils as pointnet2_utils
 from pointnet2.pointnet2_modules import PointnetSAModuleMSG
 from pointnet2.pointnet2_modules import PointnetSAModuleVotes
 from pytorch_utils.module import LightningModule
-from models.loss_helper import MCL
+from models.loss_helper import MCL, KCL, MCLKCL
 from torchmetrics import JaccardIndex
 from utils.scatterplot import draw_scatterplot
 
@@ -133,7 +133,14 @@ class MCLModule(LightningModule):
     def __init__(self, *args, **kwargs):
         super(MCLModule, self).__init__(*args, **kwargs)
         self.model = MCLModel(num_points=self.opt.num_points, num_point_features=self.opt.num_point_features, max_clusters=self.opt.max_cluster)
-        self.criterion = MCL()
+        if self.opt.loss == "mcl":
+            self.criterion = MCL()
+        elif self.opt.loss == "kcl":
+            self.criterion = KCL()
+        elif self.opt.loss == "mix":
+            self.criterion = MCLKCL(t=0.5)
+        else:
+            raise NotImplementedError(self.opt.loss)
         self.iou = JaccardIndex(num_classes=self.opt.max_cluster+1, average=None)
 
     def forward(self, batch, batch_idx, split):

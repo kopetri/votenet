@@ -15,6 +15,8 @@ if __name__ == '__main__':
     trainer.add_argument('--max_cluster', default=2, type=int, help="Max number of clusters.")
     trainer.add_argument('--num_point_features', default=0, type=int, help="Length of feature vector per points.")
     trainer.add_argument('--sampling', default='vote_fps', type=str, help="sampling strategy")
+    trainer.add_argument('--loss', default='mcl', type=str, help="Loss function [mcl, kcl, mix]")
+
 
     args = trainer.setup()
 
