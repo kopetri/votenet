@@ -5,7 +5,7 @@ from scatterplot.cluster_separation_dataset import ClusterSeparationDataset
 from pytorch_utils.scripts import Trainer
 
 if __name__ == '__main__':
-    trainer = Trainer(project_name="Cluster Separation")
+    trainer = Trainer(project_name="Cluster Separation MCL")
 
     trainer.add_argument('--learning_rate', default=1e-04, type=float, help='Learning rate')
     trainer.add_argument('--dataset_path', required=True, type=str, help='Path to data set.')

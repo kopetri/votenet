@@ -1,9 +1,10 @@
-from turtle import forward
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_utils.module import LightningModule
 from models.pointnet2_utils import PointNetSetAbstractionMsg,PointNetFeaturePropagation
+from utils.scatterplot import draw_scatterplot
 
 
 class Pointnet2Backbone(nn.Module):
@@ -79,7 +80,34 @@ class ClusterSeparationModule(LightningModule):
         B = xyz.shape[0]
         loss = self.criterion(pred, gt)
         self.log_value("loss", loss, split, B)
+        if batch_idx == 0 and split == "valid":
+            self.visualize_prediction(batch, pred, gt, log=True)
         return loss
+
+    def visualize_prediction(self, batch, segmentation_pred, segmentation_label, log=True):
+        points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
+        gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
+        dim = batch['bbox_dim'].squeeze(0).cpu().numpy() # (2, 3)
+        segmentation_pred = segmentation_pred.squeeze(0).cpu().softmax(dim=0) # (2, N)
+        segmentation_pred = torch.argmax(segmentation_pred, dim=0).numpy() # (N)
+        segmentation_label = segmentation_label.squeeze(0).cpu().numpy() # (N)
+
+        bbox = np.concatenate([gt_centers, dim], axis=1)
+        img_pred     = draw_scatterplot(points, bbox=bbox, seg_pred=segmentation_pred)
+        img_gt       = draw_scatterplot(points, bbox=bbox, seg_gt=segmentation_label)
+        if log: self.log_image(key='valid_pred', images=[img_pred])
+        if log: self.log_image(key='valid_gt', images=[img_gt])
+        return img_gt, img_pred, points, gt_centers
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
+        scheduler = {
+                'scheduler': torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda _: np.power(self.opt.learning_rate_decay, self.global_step)),
+                'interval': 'step',
+                'frequency': 1,
+                'strict': True,
+            }
+        return [optimizer], [scheduler]
         
 
 if __name__ == '__main__':
