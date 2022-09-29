@@ -146,7 +146,7 @@ class VoteNetModule(LightningModule):
         self.objectness_loss   = ObjectnessLoss()
         self.center_loss       = CenterLoss()
         self.noise_loss        = NoiseSegmentationLoss()
-        #self.adjacent_loss     = AdjacentLoss()
+        self.adjacent_loss     = AdjacentLoss()
 
     def forward(self, batch, batch_idx, split, return_labels=False):
         B = batch["point_clouds"].shape[0]
@@ -154,13 +154,13 @@ class VoteNetModule(LightningModule):
         end_points = self.model(batch)
 
         end_points = compute_object_label_mask(batch["aggregated_vote_xyz"], end_points['center_label'], end_points)
-        #end_points = compute_adjacents_labels(end_points['center'], end_points['center_label'], end_points['objectness_mask'], end_points)
+        end_points = compute_adjacents_labels(end_points['center'], end_points['center_label'], end_points['objectness_mask'], end_points)
         if return_labels: return end_points
         
         vl       = self.vote_loss(end_points['seed_xyz'], end_points['vote_xyz'], end_points['seed_inds'], end_points['vote_label_mask'], end_points['vote_label'])
         ol       = self.objectness_loss(end_points['objectness_scores'], end_points['objectness_label'], end_points['objectness_mask'])
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], end_points['objectness_label'])
-        #al       = self.adjacent_loss(end_points['adjacent_matrix'], end_points['adjacent_labels'])
+        al       = self.adjacent_loss(end_points['adjacent_matrix'], end_points['adjacent_labels'])
         sl       = self.noise_loss(end_points['segmentation_pred'], batch['noise_label'])
         loss = (vl + ol + cl + sl) / 4.0
         loss *= 10.0
@@ -169,7 +169,7 @@ class VoteNetModule(LightningModule):
         self.log_value("loss",             loss,     split=split, batch_size=B)
         self.log_value("center_loss",      cl,       split=split, batch_size=B)
         self.log_value("objectness_loss",  ol,       split=split, batch_size=B)
-        #self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
+        self.log_value("adjacent_loss",    al,       split=split, batch_size=B)
         self.log_value("vote_loss",        vl,       split=split, batch_size=B)
         self.log_value("seg_loss",         sl,       split=split, batch_size=B)
         if batch_idx == 0 and split == "valid":
@@ -194,16 +194,16 @@ class VoteNetModule(LightningModule):
         objectness_score = end_points['objectness_scores'].squeeze(0).cpu().softmax(dim=1).numpy() # (K, 2)
         objectness_score = np.argmax(objectness_score, axis=1) # (K)
         objectness_label = end_points['objectness_label'].squeeze(0).int().cpu().numpy()
-        #adjacent_matrix_pred = np.argmax(end_points['adjacent_matrix'].squeeze(0).cpu().numpy(), axis=0)  # (2, K, K)
-        #adjacent_labels = end_points['adjacent_labels'].squeeze(0).cpu().numpy()
+        adjacent_matrix_pred = np.argmax(end_points['adjacent_matrix'].squeeze(0).cpu().numpy(), axis=0)  # (2, K, K)
+        adjacent_labels = end_points['adjacent_labels'].squeeze(0).cpu().numpy()
 
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred     = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred, near=NEAR_THRESHOLD, far=FAR_THRESHOLD)
         img_gt       = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_label, seg_gt=segmentation_label, near=NEAR_THRESHOLD, far=FAR_THRESHOLD)
-        #adj_pred     = draw_adjacent_matrix(adjacent_matrix_pred)
-        #adj_gt       = draw_adjacent_matrix(adjacent_labels)
-        if log: self.log_image(key='valid_pred', images=[img_pred])
-        if log: self.log_image(key='valid_gt', images=[img_gt])
+        adj_pred     = draw_adjacent_matrix(adjacent_matrix_pred, width=500, height=500)
+        adj_gt       = draw_adjacent_matrix(adjacent_labels, width=500, height=500)
+        if log: self.log_image(key='valid_pred', images=[img_pred,adj_pred])
+        if log: self.log_image(key='valid_gt', images=[img_gt,adj_gt])
         return img_gt, img_pred, points, gt_centers, pred_centers
 
     def configure_optimizers(self):
