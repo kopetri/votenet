@@ -76,7 +76,7 @@ class ClusterSeparationModule(LightningModule):
     def forward(self, batch, batch_idx, split):
         xyz = batch['point_clouds'] # (B, N, 3)
         pred = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
-        gt = batch["noise_labels"] # (B, N)
+        gt = batch["noise_label"] # (B, N)
         B = xyz.shape[0]
         loss = self.criterion(pred, gt)
         self.log_value("loss", loss, split, B)
