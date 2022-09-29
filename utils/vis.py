@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
 
-def draw_adjacent_matrix(matrix, width=256, height=256):
-    matrix = np.round(matrix, 0)
+def draw_adjacent_matrix(matrix, round=True, width=256, height=256):
+    if round:
+        matrix = np.round(matrix, 0)
     matrix = np.repeat(matrix, height, axis=0)
     matrix = np.repeat(matrix, width, axis=1)
 

@@ -162,7 +162,7 @@ class VoteNetModule(LightningModule):
         cl       = self.center_loss(end_points['center'], end_points['center_label'], end_points['box_label_mask'], end_points['objectness_label'])
         al       = self.adjacent_loss(end_points['adjacent_matrix'], end_points['adjacent_labels'])
         sl       = self.noise_loss(end_points['segmentation_pred'], batch['noise_label'])
-        loss = (vl + ol + cl + sl) / 4.0
+        loss = (vl + ol + cl + sl) / 4.0 + al
         loss *= 10.0
 
 
@@ -200,7 +200,7 @@ class VoteNetModule(LightningModule):
         bbox = np.concatenate([gt_centers, dim], axis=1)
         img_pred     = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_score, seg_pred=segmentation_pred, near=NEAR_THRESHOLD, far=FAR_THRESHOLD)
         img_gt       = draw_scatterplot(points, pred=pred_centers, bbox=bbox, objectness_score=objectness_label, seg_gt=segmentation_label, near=NEAR_THRESHOLD, far=FAR_THRESHOLD)
-        adj_pred     = draw_adjacent_matrix(adjacent_matrix_pred, width=500, height=500)
+        adj_pred     = draw_adjacent_matrix(adjacent_matrix_pred, round=False, width=500, height=500)
         adj_gt       = draw_adjacent_matrix(adjacent_labels, width=500, height=500)
         if log: self.log_image(key='valid_pred', images=[img_pred,adj_pred])
         if log: self.log_image(key='valid_gt', images=[img_gt,adj_gt])
