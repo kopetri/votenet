@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle
 import numpy as np
-#import torch
+import torch
 import cv2
 
 def get_n_colors(N):
