@@ -74,8 +74,8 @@ class ClusterSeparationModule(LightningModule):
         self.criterion = torch.nn.CrossEntropyLoss(torch.tensor([0.9, 0.1]))
 
     def forward(self, batch, batch_idx, split):
-        xyz = batch['point_clouds'] # (B, N. 3)
-        pred = self.model(xyz) # (B, num_class, N)
+        xyz = batch['point_clouds'] # (B, N, 3)
+        pred = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
         gt = batch["noise_labels"] # (B, N)
         B = xyz.shape[0]
         loss = self.criterion(pred, gt)
