@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from pytorch_utils.module import LightningModule
 from models.pointnet2_utils import PointNetSetAbstractionMsg,PointNetFeaturePropagation
 from utils.scatterplot import draw_scatterplot
+from torchmetrics import JaccardIndex as IoU
 
 
 class Pointnet2Backbone(nn.Module):
@@ -41,9 +42,17 @@ class Pointnet2Backbone(nn.Module):
         end_points['point_clouds'] = torch.cat([end_points['point_clouds'], end_points["point_features"]], dim=2)
         return end_points
 
-class ClusterSeparation(Pointnet2Backbone):
-    def __init__(self, num_classes, *args, **kwargs):
-        super(ClusterSeparation, self).__init__(*args, **kwargs)
+class ClusterSeparation(nn.Module):
+    def __init__(self, num_classes, input_feature_dim=0):
+        super().__init__()
+        self.sa1 = PointNetSetAbstractionMsg(1024, [0.05, 0.1], [16, 32], 3+input_feature_dim, [[16, 16, 32], [32, 32, 64]])
+        self.sa2 = PointNetSetAbstractionMsg(256, [0.1, 0.2], [16, 32], 32+64, [[64, 64, 128], [64, 96, 128]])
+        self.sa3 = PointNetSetAbstractionMsg(64, [0.2, 0.4], [16, 32], 128+128, [[128, 196, 256], [128, 196, 256]])
+        self.sa4 = PointNetSetAbstractionMsg(16, [0.4, 0.8], [16, 32], 256+256, [[256, 256, 512], [256, 384, 512]])
+        self.fp4 = PointNetFeaturePropagation(512+512+256+256, [256, 256])
+        self.fp3 = PointNetFeaturePropagation(128+128+256, [256, 256])
+        self.fp2 = PointNetFeaturePropagation(32+64+256, [256, 128])
+        self.fp1 = PointNetFeaturePropagation(128, [128, 128, 128])
         self.conv1 = nn.Conv1d(128, 128, 1)
         self.bn1 = nn.BatchNorm1d(128)
         self.drop1 = nn.Dropout(0.5)
@@ -72,14 +81,19 @@ class ClusterSeparationModule(LightningModule):
         super().__init__(*args, **kwargs)
         self.model = ClusterSeparation(self.opt.max_clusters+1)
         self.criterion = torch.nn.CrossEntropyLoss(torch.tensor([0.9, 0.1]))
+        self.iou = IoU(num_classes=self.opt.max_clusters+1, average=None)
 
     def forward(self, batch, batch_idx, split):
         xyz = batch['point_clouds'] # (B, N, 3)
         pred = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
         gt = batch["noise_label"] # (B, N)
         B = xyz.shape[0]
+        if split == 'inference': return xyz, pred, gt
         loss = self.criterion(pred, gt)
+        iou = self.iou(torch.argmax(pred, dim=1), gt)
         self.log_value("loss", loss, split, B)
+        for i,score in enumerate(iou):
+            self.log_value("IoU_{}".format(i), score, split, B)
         if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, pred, gt, log=True)
         return loss
@@ -97,7 +111,14 @@ class ClusterSeparationModule(LightningModule):
         img_gt       = draw_scatterplot(points, bbox=bbox, seg_gt=segmentation_label)
         if log: self.log_image(key='valid_pred', images=[img_pred])
         if log: self.log_image(key='valid_gt', images=[img_gt])
-        return img_gt, img_pred, points, gt_centers
+        return img_gt, img_pred, points
+
+    def predict_step(self, batch, batch_idx):
+        _, pred, gt = self(batch, batch_idx, 'inference')
+        img_gt, img_pred, xyz = self.visualize_prediction(batch, pred, gt, log=False)
+        img_pred = img_pred[...,::-1]
+        img_gt = img_gt[...,::-1]
+        return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), xyz, gt, pred
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)
