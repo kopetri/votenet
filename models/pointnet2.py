@@ -76,20 +76,108 @@ class ClusterSeparation(nn.Module):
         x = self.conv2(x)
         return x
 
+class MCL(nn.Module):
+    # Meta Classification Likelihood (MCL)
+
+    eps = 1e-7 # Avoid calculating log(0). Use the small value of float16.
+        
+    def forward(self, prob1, prob2, simi):
+        # simi: 1->similar; -1->dissimilar; 0->unknown(ignore)
+        assert len(prob1)==len(prob2)==len(simi), 'Wrong input size:{0},{1},{2}'.format(str(len(prob1)),str(len(prob2)),str(len(simi)))
+        
+        P = prob1.mul_(prob2)
+        P = P.sum(2)
+        P.mul_(simi).add_(simi.eq(-1).type_as(P))
+        neglogP = -P.add_(MCL.eps).log_()
+        return neglogP.mean()
+
+class KLDiv(nn.Module):
+    # Calculate KL-Divergence
+    eps = 1e-7 # Avoid calculating log(0). Use the small value of float16.
+        
+    def forward(self, predict, target):
+       assert predict.ndimension()==3,'Input dimension must be 3'
+       target = target.clone().detach()
+
+       # KL(T||I) = \sum T(logT-logI)
+       predict += KLDiv.eps
+       target += KLDiv.eps
+       logI = predict.log()
+       logT = target.log()
+       TlogTdI = target * (logT - logI)
+       kld = TlogTdI.sum(2)
+       return kld
+
+class KCL(nn.Module):
+    # KLD-based Clustering Loss (KCL)
+
+    def __init__(self, margin=2.0):
+        super(KCL,self).__init__()
+        self.kld = KLDiv()
+        self.hingeloss = nn.HingeEmbeddingLoss(margin)
+
+    def forward(self, prob1, prob2, simi):
+        # simi: 1->similar; -1->dissimilar; 0->unknown(ignore)
+        assert len(prob1)==len(prob2)==len(simi), 'Wrong input size:{0},{1},{2}'.format(str(len(prob1)),str(len(prob2)),str(len(simi)))
+
+        kld = self.kld(prob1,prob2)
+        output = self.hingeloss(kld,simi)
+        return output
+
+class MCLKCL(nn.Module):
+    def __init__(self, t=0.5, margin=2.0):
+        super(MCLKCL,self).__init__()
+        self.mcl = MCL()
+        self.kcl = KCL(margin=margin)
+        self.t = np.clip(t, 0, 1)
+
+    def forward(self, prob1, prob2, simi):
+        return self.t * self.mcl(prob1, prob2, simi) + (1.0-self.t) * self.kcl(prob1, prob2, simi)
+
+def PairEnum(x):
+    # x.shape (B, N, C)
+    B = x.shape[0]
+    # Enumerate all pairs of feature in x
+    assert x.ndimension() == 3, 'Input dimension must be 3'
+    x1 = x.repeat(1, x.size(1), 1)
+    x2 = x.repeat(1, 1, x.size(1)).view(B,-1, x.size(2))
+    return x1,x2
+
+
+def Class2Simi(x,mode='hinge'):
+    B = x.shape[0]
+    # Convert class label to pairwise similarity
+    n=x.shape[1]
+    expand1 = x.reshape(B,n,1).repeat(1,1,n)
+    expand2 = x.reshape(B,1,n).repeat(1,n,1)
+    out = expand1 - expand2    
+    out[out!=0] = -1 #dissimilar pair: label=-1
+    out[out==0] = 1 #Similar pair: label=1
+    if mode=='cls':
+        out[out==-1] = 0 #dissimilar pair: label=0
+    if mode=='hinge':
+        out = out.float() #hingeloss require float type
+    out = out.view(B, -1)
+    return out
+
 class ClusterSeparationModule(LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model = ClusterSeparation(self.opt.max_clusters+1)
-        self.criterion = torch.nn.CrossEntropyLoss(torch.tensor([0.9, 0.1]))
+        #self.criterion = torch.nn.CrossEntropyLoss(torch.tensor([0.9, 0.1]))
+        self.criterion = MCL()
         self.iou = IoU(num_classes=self.opt.max_clusters+1, average=None)
 
     def forward(self, batch, batch_idx, split):
         xyz = batch['point_clouds'] # (B, N, 3)
-        pred = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
+        logits = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
+        pred = logits.softmax(dim=1)
+        prob1, prob2 = PairEnum(pred.permute(0,2,1))
         gt = batch["noise_label"] # (B, N)
+        simi = Class2Simi(gt, 'hinge')
         B = xyz.shape[0]
         if split == 'inference': return xyz, pred, gt
-        loss = self.criterion(pred, gt)
+        loss = self.criterion(prob1, prob2, simi)
         iou = self.iou(torch.argmax(pred, dim=1), gt)
         self.log_value("loss", loss, split, B)
         for i,score in enumerate(iou):
@@ -102,7 +190,7 @@ class ClusterSeparationModule(LightningModule):
         points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         dim = batch['bbox_dim'].squeeze(0).cpu().numpy() # (2, 3)
-        segmentation_pred = segmentation_pred.squeeze(0).cpu().softmax(dim=0) # (2, N)
+        segmentation_pred = segmentation_pred.squeeze(0).cpu() # (2, N)
         segmentation_pred = torch.argmax(segmentation_pred, dim=0).numpy() # (N)
         segmentation_label = segmentation_label.squeeze(0).cpu().numpy() # (N)
 
