@@ -406,19 +406,18 @@ class AdjacentLoss(torch.nn.Module):
         criterion = nn.CrossEntropyLoss(torch.Tensor(ADJACENT_WEIGHT).to(pred), reduction='mean')
         return criterion(pred, gt)
 
-class SegmentationLoss(torch.nn.Module):
-    def __init__(self, num_proposals) -> None:
+class NoiseSegmentationLoss(torch.nn.Module):
+    def __init__(self) -> None:
         super().__init__()
-        self.num_proposals = num_proposals
-        self.weights = torch.ones(num_proposals+1)
-        self.weights[1:] = 1.0 / num_proposals
-        self.weights = self.weights.softmax(dim=0)
+        self.criterion = nn.CrossEntropyLoss(torch.Tensor(NOISE_CLS_WEIGHTS).cuda(), reduction='none')
 
     def forward(self, segmentation_pred, segmentation_labels):
-        criterion = nn.CrossEntropyLoss(self.weights.to(segmentation_pred), reduction='mean')
-        return criterion(segmentation_pred, segmentation_labels)
+        # segmentation_pred.shape (B, N, K)
+        # segmentation_labels.shape (B, N)
+        segmentation_loss = self.criterion(segmentation_pred, segmentation_labels)
+        return torch.mean(segmentation_loss)
 
-def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
+def compute_adjacents_labels(pred_centers, gt_centers, objectmask, end_points):
     def __compute_distance_A_B(A, B):
         N = A.shape[1]
         M = B.shape[1]
@@ -450,7 +449,8 @@ def compute_adjacents_labels(pred_centers, gt_centers, objectmask):
     objectmask = ~torch.logical_or(objectmask_hor, objectmask_ver)
     objectmask = objectmask.float()
     labels = labels * objectmask
-    return labels.to(pred_centers).long(), proposal2cluster
+    end_points['adjacent_labels'], end_points['proposal2cluster'] = labels.to(pred_centers).long(), proposal2cluster
+    return end_points
 
 def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_label):
     def __compute_distance_A_B(A, B):
@@ -485,7 +485,7 @@ def compute_segmentation_labels(pred_centers, gt_centers, point_features, noise_
     point_to_cluster_labels[noise_label==0] = 0
     return point_to_cluster_labels
 
-def compute_object_label_mask(aggregated_vote_xyz, center_label):
+def compute_object_label_mask(aggregated_vote_xyz, center_label, end_points):
     gt_center = center_label[:,:,0:3]
     B = gt_center.shape[0]
     K = aggregated_vote_xyz.shape[1]
@@ -500,4 +500,5 @@ def compute_object_label_mask(aggregated_vote_xyz, center_label):
     objectness_label[euclidean_dist1<NEAR_THRESHOLD] = 1
     objectness_mask[euclidean_dist1<NEAR_THRESHOLD] = 1
     objectness_mask[euclidean_dist1>FAR_THRESHOLD] = 1
-    return objectness_label, objectness_mask
+    end_points['objectness_label'], end_points['objectness_mask'] = objectness_label, objectness_mask
+    return end_points

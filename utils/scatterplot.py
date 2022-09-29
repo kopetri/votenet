@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Circle
 import numpy as np
-import torch
+#import torch
 import cv2
 
 def get_n_colors(N):
@@ -11,11 +11,14 @@ def get_n_colors(N):
     return colors
 
 
-def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None, objectness_label=None, num_proposal=None):
+def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None, objectness_label=None, num_proposal=None, near=None, far=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:blue'}
-    colors = get_n_colors(num_proposal)
-    fig, ax = plt.subplots()
+    colors = get_n_colors(num_proposal if num_proposal else 10)
+    fig = plt.figure(figsize=(5,5))
+    ax = fig.add_subplot()
+    plt.xlim([-1.1, 1.1])
+    plt.ylim([-1.1, 1.1])
     plt.axis('off')
         
     
@@ -31,6 +34,8 @@ def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None,
         for b in bbox:
             if b[3] == 0:continue
             plt.plot(b[0], b[1], 'go')
+            if near is not None: ax.add_patch(Circle(b[0:2], radius=near, fill=False))
+            if far is not None: ax.add_patch(Circle(b[0:2], radius=far, fill=False))
             ax.add_patch(Rectangle((b[0]-b[3]*0.5,b[1]-b[4]*0.5), b[3], b[4], linewidth=1, edgecolor='g', facecolor='none'))
 
     if not pred is None:
@@ -200,11 +205,40 @@ def adjacent_matrix_to_cluster(matrix):
 
 
 if __name__ == '__main__':
+    def nn_dist(a, b):
+        M = a.shape[0]
+        N = b.shape[0]
+
+        X = np.expand_dims(a, 0).repeat(N, axis=0)
+        Y = np.expand_dims(b, 1).repeat(M, axis=1)
+        dist = X - Y 
+        dist = np.sum(dist**2, axis=-1)
+        dist1,dist2 = np.min(dist, axis=0), np.min(dist,axis=1)
+        return dist1, dist2
+        
     import cv2
-    points = np.random.normal(0,1, (100,3))
+    points = np.load("H:/data/sebi_onze_dataset/datasets/Onze/00000_vertex.npy")
+    bbox = np.load("H:/data/sebi_onze_dataset/datasets/Onze/00000_bbox.npy")
 
-    img = draw_scatterplot(points)
+    K = 64
+    NEAR_THRESHOLD = 0.2
+    FAR_THRESHOLD = 0.9
+    pred = np.random.uniform(-1,1,(K,2))
 
-    print(img.shape)
+
+    dist1, dist2 = nn_dist(pred[:, 0:2], bbox[:, 0:2])
+    
+    euclidean_dist1 = np.sqrt(dist1+1e-6)
+    objectness_label = np.zeros(K, dtype=int)
+    objectness_mask = np.zeros(K)
+    objectness_label[euclidean_dist1<NEAR_THRESHOLD] = 1
+    objectness_mask[euclidean_dist1<NEAR_THRESHOLD] = 1
+    objectness_mask[euclidean_dist1>FAR_THRESHOLD] = 1
+
+    print(objectness_label)
+
+    img = draw_scatterplot(points, pred=pred, bbox=bbox, objectness_label=objectness_label, near=NEAR_THRESHOLD, far=FAR_THRESHOLD)
+    img = img[..., ::-1] # rgb -> bgr
+    #print(img.shape)
     cv2.imshow("scatterplot", img)
     cv2.waitKey(0)

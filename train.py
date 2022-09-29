@@ -10,7 +10,7 @@ if __name__ == '__main__':
     trainer.add_argument('--learning_rate', default=1e-04, type=float, help='Learning rate')
     trainer.add_argument('--dataset_path', required=True, type=str, help='Path to data set.')
     trainer.add_argument('--batch_size', default=16, type=int, help='Batch size')
-    trainer.add_argument('--weight_decay', default=0.99999, type=float, help='Add learning rate decay.')
+    trainer.add_argument('--weight_decay', default=0.1, type=float, help='Add learning rate decay.')
     trainer.add_argument('--use_augmentation', action='store_true', help="Whether to use data augmentation")
     trainer.add_argument('--n_points', default=500, type=int, help="Whether to use data augmentation")
     trainer.add_argument('--num_proposal', default=10, type=int, help="Whether to use data augmentation")
