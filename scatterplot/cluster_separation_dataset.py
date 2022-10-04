@@ -47,7 +47,7 @@ class ClusterSeparationDataset(Dataset):
     def load_split(self):
         with open(self.path/"{}.txt".format(self.split), "r") as splitfile:
             lines = [s.strip() for s in splitfile.readlines()]
-            if self.use_small: lines = lines[0:10]
+            if self.use_small: lines = lines[0:50]
             return lines
         
     def compute_mean_size_arr(self):
@@ -160,6 +160,7 @@ class ClusterSeparationDataset(Dataset):
         ret_dict = {}
         ret_dict['point_clouds'] = point_cloud.astype(np.float32)
         ret_dict['noise_label'] = semantic_labels.astype(np.int64)
+        ret_dict['multi_label'] = instance_labels.astype(np.int64)
         ret_dict['center_label'] = target_bboxes.astype(np.float32)[:,0:3]
         ret_dict['bbox_dim'] = target_bboxes.astype(np.float32)[:,3:6]
         ret_dict['heading_class_label'] = angle_classes.astype(np.int64)

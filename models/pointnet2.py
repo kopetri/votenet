@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,6 +7,7 @@ from pytorch_utils.module import LightningModule
 from models.pointnet2_utils import PointNetSetAbstractionMsg,PointNetFeaturePropagation
 from utils.scatterplot import draw_scatterplot
 from torchmetrics import JaccardIndex as IoU
+from utils.metric_util import MCLAccuracy
 
 
 class Pointnet2Backbone(nn.Module):
@@ -77,18 +79,25 @@ class ClusterSeparation(nn.Module):
         return x
 
 class MCL(nn.Module):
-    # Meta Classification Likelihood (MCL)
-
-    eps = 1e-7 # Avoid calculating log(0). Use the small value of float16.
+    def __init__(self, weights=torch.tensor([1.0, 1.0])) -> None:
+        super().__init__()
+        # Meta Classification Likelihood (MCL)
+        self.eps = 1e-7 # Avoid calculating log(0). Use the small value of float16.
+        self.weights = weights
         
     def forward(self, prob1, prob2, simi):
         # simi: 1->similar; -1->dissimilar; 0->unknown(ignore)
         assert len(prob1)==len(prob2)==len(simi), 'Wrong input size:{0},{1},{2}'.format(str(len(prob1)),str(len(prob2)),str(len(simi)))
-        
+        self.weights = self.weights.to(prob1)
         P = prob1.mul_(prob2)
         P = P.sum(2)
         P.mul_(simi).add_(simi.eq(-1).type_as(P))
-        neglogP = -P.add_(MCL.eps).log_()
+        neglogP = -P.add_(self.eps).log_()
+        
+        # scale loss using weights
+        similar_mask = simi==1
+        neglogP[similar_mask]  *= self.weights[0]
+        neglogP[~similar_mask] *= self.weights[1]
         return neglogP.mean()
 
 class KLDiv(nn.Module):
@@ -111,18 +120,24 @@ class KLDiv(nn.Module):
 class KCL(nn.Module):
     # KLD-based Clustering Loss (KCL)
 
-    def __init__(self, margin=2.0):
+    def __init__(self, margin=2.0, weights=torch.tensor([1.0, 1.0])):
         super(KCL,self).__init__()
         self.kld = KLDiv()
-        self.hingeloss = nn.HingeEmbeddingLoss(margin)
+        self.hingeloss = nn.HingeEmbeddingLoss(margin, reduction='none')
+        self.weights = weights
 
     def forward(self, prob1, prob2, simi):
         # simi: 1->similar; -1->dissimilar; 0->unknown(ignore)
         assert len(prob1)==len(prob2)==len(simi), 'Wrong input size:{0},{1},{2}'.format(str(len(prob1)),str(len(prob2)),str(len(simi)))
+        self.weights = self.weights.to(prob1)
 
         kld = self.kld(prob1,prob2)
         output = self.hingeloss(kld,simi)
-        return output
+        # scale loss using weights
+        similar_mask = simi==1
+        output[similar_mask]  *= self.weights[0]
+        output[~similar_mask] *= self.weights[1]
+        return output.mean()
 
 class MCLKCL(nn.Module):
     def __init__(self, t=0.5, margin=2.0):
@@ -164,24 +179,25 @@ class ClusterSeparationModule(LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model = ClusterSeparation(self.opt.max_clusters+1)
-        #self.criterion = torch.nn.CrossEntropyLoss(torch.tensor([0.9, 0.1]))
-        self.criterion = MCL()
-        self.iou = IoU(num_classes=self.opt.max_clusters+1, average=None)
+        if not "loss" in self.opt: self.opt.loss = "mcl"
+        if self.opt.loss == "mcl": self.criterion = MCL(weights=torch.tensor([0.9, 0.1]))
+        if self.opt.loss == "kcl": self.criterion = KCL(weights=torch.tensor([0.9, 0.1]))
+        self.acc = MCLAccuracy(num_classes=self.opt.max_clusters+1)
 
     def forward(self, batch, batch_idx, split):
         xyz = batch['point_clouds'] # (B, N, 3)
         logits = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
         pred = logits.softmax(dim=1)
         prob1, prob2 = PairEnum(pred.permute(0,2,1))
-        gt = batch["noise_label"] # (B, N)
+        gt = batch["multi_label"] # (B, N)
         simi = Class2Simi(gt, 'hinge')
         B = xyz.shape[0]
         if split == 'inference': return xyz, pred, gt
         loss = self.criterion(prob1, prob2, simi)
-        iou = self.iou(torch.argmax(pred, dim=1), gt)
+        noise_iou, cluster_iou = self.acc(pred, gt)
         self.log_value("loss", loss, split, B)
-        for i,score in enumerate(iou):
-            self.log_value("IoU_{}".format(i), score, split, B)
+        self.log_value("Noise_IoU", noise_iou, split, B)
+        self.log_value("Cluster_IoU", cluster_iou, split, B)
         if batch_idx == 0 and split == "valid":
             self.visualize_prediction(batch, pred, gt, log=True)
         return loss
@@ -190,6 +206,7 @@ class ClusterSeparationModule(LightningModule):
         points = batch["point_clouds"].squeeze(0).cpu().numpy() # (N, 3)
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         dim = batch['bbox_dim'].squeeze(0).cpu().numpy() # (2, 3)
+
         segmentation_pred = segmentation_pred.squeeze(0).cpu() # (2, N)
         segmentation_pred = torch.argmax(segmentation_pred, dim=0).numpy() # (N)
         segmentation_label = segmentation_label.squeeze(0).cpu().numpy() # (N)
@@ -206,7 +223,8 @@ class ClusterSeparationModule(LightningModule):
         img_gt, img_pred, xyz = self.visualize_prediction(batch, pred, gt, log=False)
         img_pred = img_pred[...,::-1]
         img_gt = img_gt[...,::-1]
-        return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), xyz, gt, pred
+        noise_iou, cluster_iou = self.acc(pred, gt)
+        return img_gt, img_pred, batch["plot_id"].squeeze(0).cpu().item(), xyz, gt, pred, noise_iou, cluster_iou
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.opt.learning_rate, weight_decay=self.opt.weight_decay)

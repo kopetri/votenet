@@ -32,12 +32,12 @@ if __name__ == '__main__':
         num_workers=args.worker
     )
     
-    results = trainer.validate(model=model, dataloaders=test_loader)
+    results = trainer.test(model=model, dataloaders=test_loader)
     results = trainer.predict(model=model, dataloaders=test_loader)
     for result in results:
-        [img_gt, img_pred, pid, points, gt, pred] = result
+        [img_gt, img_pred, pid, points, gt, pred, noise, cluster] = result
         path_img_gt     = Path(ckpt).parent/"results"/"gt_{}.jpg".format(pid)
-        path_img_pred   = Path(ckpt).parent/"results"/"pred_{}.jpg".format(pid)
+        path_img_pred   = Path(ckpt).parent/"results"/"pred_{}_noise{}_cluster{}.jpg".format(pid, round(noise, 2), round(cluster, 2))
         path_points     = Path(ckpt).parent/"results"/"points_{}.npy".format(pid)
         path_gt         = Path(ckpt).parent/"results"/"gt_{}.npy".format(pid)
         path_pred       = Path(ckpt).parent/"results"/"pred_{}.npy".format(pid)

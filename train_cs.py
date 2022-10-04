@@ -14,6 +14,7 @@ if __name__ == '__main__':
     trainer.add_argument('--use_augmentation', action='store_true', help="Whether to use data augmentation")
     trainer.add_argument('--n_points', default=500, type=int, help="Whether to use data augmentation")
     trainer.add_argument('--max_clusters', default=1, type=int, help="Number of clusters to separate.")
+    trainer.add_argument('--loss', default='mcl', type=str, help="Loss function mcl or kcl")
 
     args = trainer.setup()
 

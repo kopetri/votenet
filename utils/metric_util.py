@@ -12,6 +12,7 @@ Author: Or Litany and Charles R. Qi
 import torch
 import numpy as np
 from torchmetrics import JaccardIndex
+from itertools import permutations
 
 # Mesh IO
 import trimesh
@@ -166,6 +167,31 @@ class IoU(torch.nn.Module):
         gt = proposal2cluster[gt][...,0]
         iou = jaccard_index(pred, gt)
         return iou
+
+class MCLAccuracy(torch.nn.Module):
+    def __init__(self, num_classes) -> None:
+        super().__init__()
+        self.num_classes = num_classes
+        self.class_indices = torch.arange(1, num_classes)
+
+    def forward(self, pred, gt):
+        pred = pred.detach() # (B, P, N)
+        gt = gt.detach()
+        
+        pred = torch.argmax(pred, dim=1) # (B, N)
+        cluster_iou = 0.0
+        noise_iou = 0.0
+        for p in permutations(self.class_indices):
+            p = torch.tensor(p)
+            p = torch.cat([torch.tensor([0]), p])
+            try:
+                pred_perm = p[pred].to(pred)
+                iou = JaccardIndex(average=None, num_classes=self.num_classes).cuda()(pred_perm, gt)
+                noise_iou = iou[0].item()
+                cluster_iou = max(cluster_iou, torch.mean(iou[1:]).item())
+            except:
+                pass
+        return noise_iou, cluster_iou
 
 
 if __name__ == '__main__':
