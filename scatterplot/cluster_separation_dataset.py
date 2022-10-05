@@ -8,11 +8,42 @@
 An axis aligned bounding box is parameterized by (cx,cy,cz) and (dx,dy,dz)
 where (cx,cy,cz) is the center point of the box, dx is the x-axis length of the box.
 """
-import os
 import numpy as np
 from torch.utils.data import Dataset
 from pathlib import Path
 from utils.pc_util import random_sampling, rotz, rotate_aligned_boxes
+
+def generate_splits(directory, train=0.8, valid=0.05, test=0.15):
+    print("Generating splits...")
+    def __write_files__(files, out):
+        if isinstance(out, Path):
+            out = out.as_posix()
+        with open(out, "w") as txtfile:
+            for f in files:
+                txtfile.write("{}\n".format(f.stem))
+
+    files = [f for f in directory.glob("*") if f.suffix == ".npy"]
+
+    N = len(files)
+    n_train = int(N * train)
+    n_valid = int(N * valid)
+    n_test  = int(N * test)
+
+    rest = N - (n_train + n_valid + n_test)
+    n_test += rest
+
+    assert n_train + n_valid + n_test == N, "{} !+ {}".format(n_train + n_valid + n_test, N)
+
+    np.random.shuffle(files)
+
+    train_split = files[0:n_train]
+    valid_split = files[n_train:n_train+n_valid]
+    test_split  = files[n_train+n_valid:n_train+n_valid+n_test]
+
+    __write_files__(train_split, Path(directory, "train.txt"))
+    __write_files__(valid_split, Path(directory, "valid.txt"))
+    __write_files__(test_split,  Path(directory, "test.txt"))
+
 
 MAX_NUM_OBJ = 2
 
@@ -26,6 +57,62 @@ class ClusterSeparatonDatasetConfig(object):
             [1.1353437, 1.1349982, 0.]
         ])
         
+class RealClusterDataset(Dataset):
+    def __init__(self, path, split='train', augment=False) -> None:
+        super().__init__()
+        self.use_small = "small" in split
+        self.split = split.replace("_small", "")
+        self.path = Path(path)
+        self.augment = augment
+        self.ids = self.load_split()
+        if self.use_small: print("DEBUG using small version!")
+        print("Found {} scatterplots for split {}".format(len(self.ids), split))
+
+    def load_split(self):
+        split_file = self.path/"{}.txt".format(self.split)
+        if not split_file.exists():
+            generate_splits(self.path)
+        with open(split_file, "r") as splitfile:
+            lines = [s.strip() for s in splitfile.readlines()]
+            if self.use_small: lines = lines[0:50]
+            return lines
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, idx):        
+        plot_id = self.ids[idx]        
+        data = np.load(self.path/'{}.npy'.format(plot_id)) # X,Y,Label
+
+        point_cloud = np.zeros((data.shape[0], 3))
+        point_cloud[:, 0:2] = data[:,0:2]
+        multi_label = data[:, 2] + 1 # 0 noise, 1 cluster 1, 2 cluster 2, ...
+        noise_label = np.clip(data[:, 2] + 1, 0, 1) # 0 noise, 1 cluster
+
+     
+        
+        # ------------------------------- DATA AUGMENTATION ------------------------------        
+        if self.augment:
+            if np.random.random() > 0.5:
+                # Flipping along the YZ plane
+                point_cloud[:,0] = -1 * point_cloud[:,0]
+                
+            if np.random.random() > 0.5:
+                # Flipping along the XZ plane
+                point_cloud[:,1] = -1 * point_cloud[:,1]
+            
+            # Rotation along up-axis/Z-axis
+            rot_angle = (np.random.random()*np.pi/18) - np.pi/36 # -5 ~ +5 degree
+            rot_mat = rotz(rot_angle)
+            point_cloud[:,0:3] = np.dot(point_cloud[:,0:3], np.transpose(rot_mat))
+            
+        ret_dict = {}
+        ret_dict['xyz'] = point_cloud.astype(np.float32)
+        ret_dict['multi_label'] = multi_label.astype(np.int64)
+        ret_dict['noise_label'] = noise_label.astype(np.int64)
+        ret_dict['plot_id'] = np.array(plot_id).astype(np.int64)
+        return ret_dict
+
 
 class ClusterSeparationDataset(Dataset):
        

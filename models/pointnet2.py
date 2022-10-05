@@ -206,7 +206,7 @@ class ClusterSeparationModule(LightningModule):
         self.acc = MCLAccuracy(num_classes=self.opt.max_clusters)
 
     def forward(self, batch, batch_idx, split):
-        xyz = batch['point_clouds'] # (B, N, 3)
+        xyz = batch['xyz'] # (B, N, 3)
         B = xyz.shape[0]
 
         # make prediction
@@ -214,16 +214,16 @@ class ClusterSeparationModule(LightningModule):
         pred = mcl_logits.softmax(dim=1)
         
         # ground truth
-        gt       = batch["multi_label"] # (B, N)
-        noise_gt = batch["noise_label"] # (B, N)
-        mask     = ~(noise_gt == 0) # get non zero mask
+        gt          = batch["multi_label"] # (B, N)
+        noise_gt    = batch["noise_label"] # (B, N)
+        noise_mask  = noise_gt==0
         
         # end here during inference
         if split == 'inference': return xyz, pred, gt
 
         # meta classification
-        prob1, prob2 = PairEnum(pred.permute(0,2,1), mask)
-        simi = Class2Simi(gt, 'hinge', mask)
+        prob1, prob2 = PairEnum(pred.permute(0,2,1), ~noise_mask)
+        simi = Class2Simi(gt, 'hinge', ~noise_mask)
         mcl_loss = self.criterion(prob1, prob2, simi)
 
         # noise segmentation 
