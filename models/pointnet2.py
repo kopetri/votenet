@@ -45,7 +45,7 @@ class Pointnet2Backbone(nn.Module):
         return end_points
 
 class ClusterSeparation(nn.Module):
-    def __init__(self, num_classes, input_feature_dim=0):
+    def __init__(self, max_cluster, input_feature_dim=0):
         super().__init__()
         self.sa1 = PointNetSetAbstractionMsg(1024, [0.05, 0.1], [16, 32], 3+input_feature_dim, [[16, 16, 32], [32, 32, 64]])
         self.sa2 = PointNetSetAbstractionMsg(256, [0.1, 0.2], [16, 32], 32+64, [[64, 64, 128], [64, 96, 128]])
@@ -58,7 +58,7 @@ class ClusterSeparation(nn.Module):
         self.conv1 = nn.Conv1d(128, 128, 1)
         self.bn1 = nn.BatchNorm1d(128)
         self.drop1 = nn.Dropout(0.5)
-        self.conv2 = nn.Conv1d(128, num_classes, 1)
+        self.conv2 = nn.Conv1d(128, max_cluster+2, 1)
 
     def forward(self, xyz):
         l0_points = xyz
@@ -76,7 +76,9 @@ class ClusterSeparation(nn.Module):
 
         x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
         x = self.conv2(x)
-        return x
+        noise = x[:, 0:2, :] # (B, 2, N)
+        mcl   = x[:, 2:, :]  # (B, max_cluster, N)
+        return noise, mcl
 
 class MCL(nn.Module):
     def __init__(self, weights=torch.tensor([1.0, 1.0])) -> None:
@@ -139,6 +141,15 @@ class KCL(nn.Module):
         output[~similar_mask] *= self.weights[1]
         return output.mean()
 
+class NoiseLoss(nn.Module):
+    def __init__(self):
+        super(NoiseLoss,self).__init__()
+        self.noise_weights = [0.9, 0.1]
+
+    def forward(self, pred, gt):
+        cel = torch.nn.CrossEntropyLoss(torch.tensor(self.noise_weights)).to(pred)
+        return cel(pred, gt)
+
 class MCLKCL(nn.Module):
     def __init__(self, t=0.5, margin=2.0):
         super(MCLKCL,self).__init__()
@@ -149,17 +160,23 @@ class MCLKCL(nn.Module):
     def forward(self, prob1, prob2, simi):
         return self.t * self.mcl(prob1, prob2, simi) + (1.0-self.t) * self.kcl(prob1, prob2, simi)
 
-def PairEnum(x):
+def PairEnum(x, mask=None):
+    # mask.shape (B, N)
     # x.shape (B, N, C)
     B = x.shape[0]
     # Enumerate all pairs of feature in x
     assert x.ndimension() == 3, 'Input dimension must be 3'
-    x1 = x.repeat(1, x.size(1), 1)
-    x2 = x.repeat(1, 1, x.size(1)).view(B,-1, x.size(2))
+    x1 = x.repeat(1, x.size(1), 1) # (B, N*N, C)
+    x2 = x.repeat(1, 1, x.size(1)).view(B,-1, x.size(2)) # (B, N*N, C)
+    if mask is not None:
+        xmask = mask.view(B, -1).repeat(1, x.size(1))
+        #dim 0: #sample, dim 1:#feature 
+        x1 = x1[xmask].view(1, -1,x.size(2))
+        x2 = x2[xmask].view(1, -1,x.size(2))
     return x1,x2
 
 
-def Class2Simi(x,mode='hinge'):
+def Class2Simi(x,mode='hinge',mask=None):
     B = x.shape[0]
     # Convert class label to pairwise similarity
     n=x.shape[1]
@@ -173,33 +190,64 @@ def Class2Simi(x,mode='hinge'):
     if mode=='hinge':
         out = out.float() #hingeloss require float type
     out = out.view(B, -1)
+    if mask is not None: # apply mask
+        mask = mask.view(B, -1).repeat(1, x.size(1))
+        out = out[mask]
+        out = out.view(1, -1)
     return out
 
 class ClusterSeparationModule(LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model = ClusterSeparation(self.opt.max_clusters+1)
-        if not "loss" in self.opt: self.opt.loss = "mcl"
+        self.model = ClusterSeparation(self.opt.max_clusters)
         if self.opt.loss == "mcl": self.criterion = MCL(weights=torch.tensor([0.9, 0.1]))
         if self.opt.loss == "kcl": self.criterion = KCL(weights=torch.tensor([0.9, 0.1]))
-        self.acc = MCLAccuracy(num_classes=self.opt.max_clusters+1)
+        self.noise_loss = NoiseLoss()
+        self.acc = MCLAccuracy(num_classes=self.opt.max_clusters)
 
     def forward(self, batch, batch_idx, split):
         xyz = batch['point_clouds'] # (B, N, 3)
-        logits = self.model(xyz.permute(0,2,1)) # (B, num_class, N)
-        pred = logits.softmax(dim=1)
-        prob1, prob2 = PairEnum(pred.permute(0,2,1))
-        gt = batch["multi_label"] # (B, N)
-        simi = Class2Simi(gt, 'hinge')
         B = xyz.shape[0]
+
+        # make prediction
+        noise_logits, mcl_logits = self.model(xyz.permute(0,2,1)) # (B, 2, N), (B, num_class, N)
+        pred = mcl_logits.softmax(dim=1)
+        
+        # ground truth
+        gt       = batch["multi_label"] # (B, N)
+        noise_gt = batch["noise_label"] # (B, N)
+        mask     = ~(noise_gt == 0) # get non zero mask
+        
+        # end here during inference
         if split == 'inference': return xyz, pred, gt
-        loss = self.criterion(prob1, prob2, simi)
-        noise_iou, cluster_iou = self.acc(pred, gt)
+
+        # meta classification
+        prob1, prob2 = PairEnum(pred.permute(0,2,1), mask)
+        simi = Class2Simi(gt, 'hinge', mask)
+        mcl_loss = self.criterion(prob1, prob2, simi)
+
+        # noise segmentation 
+        noise_loss = self.noise_loss(noise_logits, noise_gt)
+
+        # Compose loss
+        loss = noise_loss * 0.5 + mcl_loss * 0.5
+
+        # Metrics
+        cluster = torch.argmax(pred, dim=1) + 1
+        noise = torch.argmax(noise_logits.softmax(dim=1), dim=1)
+        cluster[noise==0] = 0
+        noise_iou, cluster_iou = self.acc(cluster, gt)
+
+        # Logging
         self.log_value("loss", loss, split, B)
+        self.log_value("noise_loss", noise_loss, split, B)
+        self.log_value("mcl_loss", mcl_loss, split, B)
         self.log_value("Noise_IoU", noise_iou, split, B)
         self.log_value("Cluster_IoU", cluster_iou, split, B)
+
+        # Visualisation
         if batch_idx == 0 and split == "valid":
-            self.visualize_prediction(batch, pred, gt, log=True)
+            self.visualize_prediction(batch, cluster, gt, log=True)
         return loss
 
     def visualize_prediction(self, batch, segmentation_pred, segmentation_label, log=True):
@@ -207,8 +255,7 @@ class ClusterSeparationModule(LightningModule):
         gt_centers = batch['center_label'].squeeze(0).cpu().numpy() # (2, 3)
         dim = batch['bbox_dim'].squeeze(0).cpu().numpy() # (2, 3)
 
-        segmentation_pred = segmentation_pred.squeeze(0).cpu() # (2, N)
-        segmentation_pred = torch.argmax(segmentation_pred, dim=0).numpy() # (N)
+        segmentation_pred = segmentation_pred.squeeze(0).cpu().numpy() # (N)
         segmentation_label = segmentation_label.squeeze(0).cpu().numpy() # (N)
 
         bbox = np.concatenate([gt_centers, dim], axis=1)

@@ -171,14 +171,14 @@ class IoU(torch.nn.Module):
 class MCLAccuracy(torch.nn.Module):
     def __init__(self, num_classes) -> None:
         super().__init__()
-        self.num_classes = num_classes
+        self.num_classes = num_classes+1
         self.class_indices = torch.arange(1, num_classes)
 
     def forward(self, pred, gt):
-        pred = pred.detach() # (B, P, N)
+        pred = pred.detach() # (B, N)
         gt = gt.detach()
         
-        pred = torch.argmax(pred, dim=1) # (B, N)
+        #pred = torch.argmax(pred, dim=1) # (B, N)
         cluster_iou = 0.0
         noise_iou = 0.0
         for p in permutations(self.class_indices):
