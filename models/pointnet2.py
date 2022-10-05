@@ -206,7 +206,7 @@ class ClusterSeparationModule(LightningModule):
         self.acc = MCLAccuracy(num_classes=self.opt.max_clusters)
 
     def forward(self, batch, batch_idx, split):
-        xyz = batch['xyz'] # (B, N, 3)
+        xyz = batch['point_clouds'] # (B, N, 3)
         B = xyz.shape[0]
 
         # make prediction

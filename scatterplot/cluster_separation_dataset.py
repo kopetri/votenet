@@ -107,7 +107,7 @@ class RealClusterDataset(Dataset):
             point_cloud[:,0:3] = np.dot(point_cloud[:,0:3], np.transpose(rot_mat))
             
         ret_dict = {}
-        ret_dict['xyz'] = point_cloud.astype(np.float32)
+        ret_dict['point_clouds'] = point_cloud.astype(np.float32)
         ret_dict['multi_label'] = multi_label.astype(np.int64)
         ret_dict['noise_label'] = noise_label.astype(np.int64)
         ret_dict['plot_id'] = np.array(plot_id).astype(np.int64)
@@ -307,14 +307,8 @@ def viz_obb(pc, label, mask, angle_classes, angle_residuals,
 if __name__=='__main__': 
     import cv2
     from utils.scatterplot import draw_scatterplot
-    dataset = ClusterSeparationDataset(path="H:/data/sebi_onze_dataset/datasets/Onze", split="train", augment=False)
+    dataset = RealClusterDataset(path="../dataset/sebi_onze_dataset/datasets/data-gov-dataset/no_project/", split="train", augment=False)
     for d in dataset:
-        points = d["point_clouds"] # (N, 3)
-        centers = d['center_label'] # (2, 3)
-        dim = d['bbox_dim'] # (2, 3)
-        bbox = np.concatenate([centers, dim], axis=1) # (2, 6)
-        img = draw_scatterplot(points, bbox=bbox)
-        img = img[...,::-1]
-        cv2.imshow("scatterplot", img)
-        cv2.waitKey(0)
+        points = d["xyz"] # (N, 3)
+        print(points.shape)
         break
