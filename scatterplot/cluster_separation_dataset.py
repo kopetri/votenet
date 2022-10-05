@@ -44,6 +44,22 @@ def generate_splits(directory, train=0.8, valid=0.05, test=0.15):
     __write_files__(valid_split, Path(directory, "valid.txt"))
     __write_files__(test_split,  Path(directory, "test.txt"))
 
+def get_max_cluster_count(directory):
+    from tqdm import tqdm
+    files = [f for f in directory.glob("*") if f.suffix == ".npy"]
+    max_cluster = 0
+    numbers = []
+    for file in tqdm(files):
+        data = np.load(file)
+        label = data[:, 2]
+        n = int(np.max(label) + 1)
+        numbers.append(n)
+        if n > 10:
+            file.unlink()
+        max_cluster = max(n, max_cluster)
+    print("Maximum number of cluster is: ", max_cluster)
+    print(np.unique(np.array(numbers), return_counts=True))
+
 
 MAX_NUM_OBJ = 2
 
@@ -309,6 +325,6 @@ if __name__=='__main__':
     from utils.scatterplot import draw_scatterplot
     dataset = RealClusterDataset(path="../dataset/sebi_onze_dataset/datasets/data-gov-dataset/no_project/", split="train", augment=False)
     for d in dataset:
-        points = d["xyz"] # (N, 3)
+        points = d["point_clouds"] # (N, 3)
         print(points.shape)
         break

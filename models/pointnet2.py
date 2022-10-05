@@ -203,7 +203,6 @@ class ClusterSeparationModule(LightningModule):
         if self.opt.loss == "mcl": self.criterion = MCL(weights=torch.tensor([0.9, 0.1]))
         if self.opt.loss == "kcl": self.criterion = KCL(weights=torch.tensor([0.9, 0.1]))
         self.noise_loss = NoiseLoss()
-        self.acc = MCLAccuracy(num_classes=self.opt.max_clusters)
 
     def forward(self, batch, batch_idx, split):
         xyz = batch['point_clouds'] # (B, N, 3)
@@ -236,14 +235,11 @@ class ClusterSeparationModule(LightningModule):
         cluster = torch.argmax(pred, dim=1) + 1
         noise = torch.argmax(noise_logits.softmax(dim=1), dim=1)
         cluster[noise==0] = 0
-        noise_iou, cluster_iou = self.acc(cluster, gt)
 
         # Logging
         self.log_value("loss", loss, split, B)
         self.log_value("noise_loss", noise_loss, split, B)
         self.log_value("mcl_loss", mcl_loss, split, B)
-        self.log_value("Noise_IoU", noise_iou, split, B)
-        self.log_value("Cluster_IoU", cluster_iou, split, B)
 
         # Visualisation
         if batch_idx == 0 and split == "valid":
@@ -283,10 +279,9 @@ class ClusterSeparationModule(LightningModule):
 
 if __name__ == '__main__':
     import  torch
-    model = Pointnet2Backbone(output_feature_dim=6)
-    xyz = torch.rand(6, 1337, 3)
+    model = ClusterSeparation(10).cuda()
+    xyz = torch.rand(6, 512, 3).cuda()
 
-    end_points = {}
-    end_points['point_clouds'] = xyz
-    end_points = model(end_points)
-    print(end_points['point_clouds_feat'].shape)
+    noise, cluster = model(xyz.permute(0,2,1))
+    print(noise.shape)
+    print(cluster.shape)

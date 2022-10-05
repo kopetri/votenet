@@ -14,7 +14,7 @@ def get_n_colors(N):
 def draw_scatterplot(points=None, sem=None, instance=None, bbox=None, pred=None, seg_pred=None, seg_gt=None, objectness_score=None, objectness_label=None, num_proposal=None, near=None, far=None):
     colors = {0:'tab:blue', 1:'tab:orange', 2:'tab:green'}
     colors_sem = {0:'tab:purple', 1:'tab:blue'}
-    colors = get_n_colors(num_proposal if num_proposal else 10)
+    colors = get_n_colors(num_proposal if num_proposal else 11)
     fig = plt.figure(figsize=(5,5))
     ax = fig.add_subplot()
     plt.xlim([-1.1, 1.1])
